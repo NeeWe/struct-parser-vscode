@@ -370,13 +370,16 @@ export class StructParserPanel {
                 if (field.children && field.children.length > 0) {
                     buildBinary(field.children as ParsedField[]);
                 } else {
-                    binaryStr = field.binary + binaryStr;
+                    // 按照字段顺序拼接（从左到右，从MSB到LSB）
+                    binaryStr += field.binary;
                 }
             });
         };
 
         buildBinary(this._currentParsedData.fields);
         this._currentParsedData.binaryValue = binaryStr;
+        
+        console.log(`[StructParser] Recalculated binary: ${binaryStr} = 0x${BigInt('0b' + binaryStr).toString(16).toUpperCase()}`);
     }
 
     private _searchFields(searchTerm: string) {
