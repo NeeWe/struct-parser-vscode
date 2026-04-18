@@ -66,18 +66,6 @@
           "when": "editorHasSelection",
           "group": "9_cutcopypaste@5"
         }
-      ],
-      "view/title": [
-        {
-          "command": "structParser.importJson",
-          "when": "view == structExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "structParser.refresh",
-          "when": "view == structExplorer",
-          "group": "navigation"
-        }
       ]
     },
     "viewsContainers": {
@@ -92,10 +80,11 @@
     "views": {
       "structParser": [
         {
-          "id": "structExplorer",
-          "name": "Struct Explorer",
+          "id": "structSelector",
+          "name": "Struct Selector",
+          "type": "webview",
           "icon": "$(symbol-structure)",
-          "contextualTitle": "Struct Explorer"
+          "contextualTitle": "Struct Selector"
         }
       ]
     },

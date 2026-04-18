@@ -45,6 +45,7 @@ export class StructParserPanel {
     private readonly _extensionUri: vscode.Uri;
     private _disposables: vscode.Disposable[] = [];
     private _structData: StructJson | null = null;
+    private _currentStruct: StructDef | null = null;
     private _currentParsedData: {
         struct: StructDef;
         fields: ParsedField[];
@@ -528,15 +529,36 @@ export class StructParserPanel {
         });
     }
 
+    public showStructDefinition(struct: StructDef) {
+        this._currentStruct = struct;
+        this._update();
+    }
+
     public refreshStructList(structData: StructJson) {
         this._structData = structData;
-        const structNames = [...structData.structs, ...structData.unions].map(s => s.name);
-        
-        this._panel.webview.postMessage({
-            command: 'jsonImported',
-            structNames: structNames,
-            filePath: vscode.workspace.getConfiguration('structParser').get('jsonPath', '')
+    }
+
+    private _renderFieldList(fields: StructField[], level: number = 0): string {
+        let html = '';
+        fields.forEach(field => {
+            const indent = level * 20;
+            const hasChildren = field.children && field.children.length > 0;
+            
+            html += `
+                <div class="sp-field-row" style="padding-left: ${indent}px">
+                    <span class="sp-field-name">${hasChildren ? '▼' : '•'} ${field.name}</span>
+                    <span class="sp-field-type">${field.type}</span>
+                    <span class="sp-field-bits">${field.bits}</span>
+                    <span class="sp-field-offset">${field.offset}</span>
+                    <span class="sp-field-value" data-field="${field.name}">-</span>
+                </div>
+            `;
+            
+            if (hasChildren) {
+                html += this._renderFieldList(field.children!, level + 1);
+            }
         });
+        return html;
     }
 
     private _update() {
@@ -546,8 +568,10 @@ export class StructParserPanel {
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
-        const structNames = this._structData ? 
-            [...this._structData.structs, ...this._structData.unions].map(s => s.name) : [];
+        const hasStruct = this._currentStruct !== null;
+        const structName = this._currentStruct?.name || '';
+        const structType = this._currentStruct?.type || '';
+        const structSize = this._currentStruct?.size_bits || 0;
 
         return `<!DOCTYPE html>
         <html lang="en">
@@ -561,36 +585,39 @@ export class StructParserPanel {
         </head>
         <body>
             <div class="sp-container">
-                <!-- Compact Header with Import -->
-                <header class="sp-header-compact">
-                    <div class="sp-header-main">
-                        <h1 class="sp-title">🔧 Struct Parser</h1>
-                        <button id="btnImport" class="sp-btn sp-btn-sm" title="Import JSON">📂 Import</button>
-                    </div>
-                    <div id="importStatus" class="sp-status-line ${structNames.length > 0 ? 'sp-status-success' : 'sp-status-warning'}">
-                        ${structNames.length > 0 ? '✓ ' + structNames.length + ' structs loaded' : '⚠ Click Import to load structs'}
+                <!-- Header with Struct Info -->
+                <header class="sp-header-compact" id="headerSection" style="display: ${hasStruct ? 'block' : 'none'}">
+                    <div class="sp-struct-info">
+                        <div class="sp-struct-name">
+                            <span class="sp-type-icon ${structType}"></span>
+                            <span>${structName}</span>
+                            <span class="sp-struct-size">${structSize} bits</span>
+                        </div>
                     </div>
                 </header>
 
+                <!-- Empty State -->
+                <div id="emptyState" class="sp-empty-state" style="display: ${hasStruct ? 'none' : 'flex'}">
+                    <div class="sp-empty-icon">📋</div>
+                    <div class="sp-empty-text">Select a struct from the sidebar</div>
+                    <div class="sp-empty-hint">Use the search box to find and select a struct</div>
+                </div>
+
                 <!-- Main Input Area -->
-                <section class="sp-section sp-section-compact">
+                <section class="sp-section sp-section-compact" id="inputSection" style="display: ${hasStruct ? 'block' : 'none'}">
                     <div class="sp-input-row">
-                        <div class="sp-input-group sp-flex-2">
+                        <div class="sp-input-group sp-flex-1">
                             <span class="sp-input-prefix">0x</span>
-                            <input type="text" id="hexInput" class="sp-input" placeholder="ABCD1234" maxlength="16">
+                            <input type="text" id="hexInput" class="sp-input" placeholder="Enter hex value" maxlength="16">
                         </div>
-                        <select id="structSelect" class="sp-select sp-flex-1">
-                            <option value="">Select struct...</option>
-                            ${structNames.map(name => `<option value="${name.replace(/"/g, '&quot;')}">${name}</option>`).join('')}
-                        </select>
-                        <button id="btnParse" class="sp-btn sp-btn-primary" ${structNames.length === 0 ? 'disabled' : ''}>
+                        <button id="btnParse" class="sp-btn sp-btn-primary">
                             ▶ Parse
                         </button>
                     </div>
                 </section>
 
                 <!-- History Bar (Horizontal) -->
-                <div class="sp-history-bar" id="historySection" style="display: ${this._history.length > 0 ? 'flex' : 'none'}">
+                <div class="sp-history-bar" id="historySection" style="display: ${this._history.length > 0 && hasStruct ? 'flex' : 'none'}">
                     <span class="sp-history-label">🕐</span>
                     <div class="sp-history-items">
                         ${this._history.slice(0, 3).map((item, index) => `
@@ -603,27 +630,38 @@ export class StructParserPanel {
                     <button id="btnClearHistory" class="sp-btn sp-btn-xs sp-btn-text">Clear</button>
                 </div>
 
-                <!-- Search Bar (Collapsible) -->
-                <div class="sp-search-bar" id="searchSection" style="display: none;">
-                    <div class="sp-search-input-wrapper">
-                        <span class="sp-search-icon">🔍</span>
-                        <input type="text" id="searchInput" class="sp-search-input" placeholder="Search fields...">
-                        <button id="btnCloseSearch" class="sp-btn sp-btn-xs">✕</button>
+                <!-- Struct Definition Section -->
+                <section class="sp-section sp-section-results" id="definitionSection" style="display: ${hasStruct ? 'block' : 'none'}">
+                    <div class="sp-section-header">
+                        <span class="sp-section-title">Struct Definition</span>
+                        <div class="sp-toolbar">
+                            <button id="btnSearch" class="sp-btn sp-btn-icon" title="Search Fields">🔍</button>
+                            <button id="btnCopyDef" class="sp-btn sp-btn-icon" title="Copy Definition">📋</button>
+                        </div>
                     </div>
-                    <div id="searchResults" class="sp-search-results"></div>
-                </div>
+                    <div class="sp-section-body">
+                        <div class="sp-field-header">
+                            <span class="sp-field-h-name">Field</span>
+                            <span class="sp-field-h-type">Type</span>
+                            <span class="sp-field-h-bits">Bits</span>
+                            <span class="sp-field-h-offset">Offset</span>
+                            <span class="sp-field-h-value">Value</span>
+                        </div>
+                        <div id="fieldList" class="sp-field-list">
+                            ${hasStruct ? this._renderFieldList(this._currentStruct!.fields) : ''}
+                        </div>
+                    </div>
+                </section>
 
-                <!-- Results Section -->
+                <!-- Parsed Results Section -->
                 <section class="sp-section sp-section-results" id="resultsSection" style="display: none;">
                     <div class="sp-results-header">
                         <div class="sp-full-value" id="fullValue"></div>
                         <div class="sp-results-actions">
-                            <button id="btnSearch" class="sp-btn sp-btn-xs" title="Search">🔍</button>
-                            <button id="btnCopyResults" class="sp-btn sp-btn-xs" title="Copy">📋</button>
                             <button id="btnExportResults" class="sp-btn sp-btn-xs" title="Export">📤</button>
                         </div>
                     </div>
-                    <div id="treeRoot" class="sp-tree"></div>
+                    <div id="parsedTree" class="sp-tree"></div>
                 </section>
             </div>
 
@@ -783,6 +821,56 @@ export class StructParserPanel {
                 font-size: 11px;
             }
             
+            /* Struct Info Header */
+            .sp-struct-info {
+                padding: var(--sp-md);
+                background-color: var(--vscode-panel-background);
+                border: 1px solid var(--vscode-panel-border);
+                border-radius: var(--sp-radius);
+            }
+            
+            .sp-struct-name {
+                display: flex;
+                align-items: center;
+                gap: var(--sp-sm);
+                font-size: 16px;
+                font-weight: 600;
+            }
+            
+            .sp-struct-size {
+                margin-left: auto;
+                font-size: 12px;
+                color: var(--vscode-descriptionForeground);
+                font-weight: normal;
+            }
+            
+            /* Empty State */
+            .sp-empty-state {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 48px 24px;
+                text-align: center;
+            }
+            
+            .sp-empty-icon {
+                font-size: 48px;
+                margin-bottom: 16px;
+            }
+            
+            .sp-empty-text {
+                font-size: 16px;
+                font-weight: 500;
+                color: var(--vscode-foreground);
+                margin-bottom: 8px;
+            }
+            
+            .sp-empty-hint {
+                font-size: 13px;
+                color: var(--vscode-descriptionForeground);
+            }
+            
             /* Input Row */
             .sp-input-row {
                 display: flex;
@@ -791,7 +879,6 @@ export class StructParserPanel {
             }
             
             .sp-flex-1 { flex: 1; }
-            .sp-flex-2 { flex: 2; }
             
             /* Input */
             .sp-input-group {
@@ -978,24 +1065,83 @@ export class StructParserPanel {
                 color: var(--vscode-foreground);
             }
             
+            /* Field List */
+            .sp-field-list {
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .sp-field-header {
+                display: flex;
+                align-items: center;
+                padding: var(--sp-sm) var(--sp-md);
+                background-color: var(--vscode-panel-background);
+                border-bottom: 1px solid var(--vscode-panel-border);
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--vscode-descriptionForeground);
+                text-transform: uppercase;
+            }
+            
+            .sp-field-h-name { flex: 2; }
+            .sp-field-h-type { flex: 1; }
+            .sp-field-h-bits { width: 50px; text-align: right; }
+            .sp-field-h-offset { width: 50px; text-align: right; }
+            .sp-field-h-value { width: 80px; text-align: right; }
+            
+            .sp-field-row {
+                display: flex;
+                align-items: center;
+                padding: 8px var(--sp-md);
+                border-bottom: 1px solid var(--vscode-panel-border);
+                font-size: 13px;
+            }
+            
+            .sp-field-row:hover {
+                background-color: var(--vscode-list-hoverBackground);
+            }
+            
+            .sp-field-row:last-child {
+                border-bottom: none;
+            }
+            
+            .sp-field-name { 
+                flex: 2; 
+                font-weight: 500;
+                color: var(--vscode-foreground);
+            }
+            
+            .sp-field-type { 
+                flex: 1; 
+                color: var(--vscode-symbolIcon-colorForeground);
+            }
+            
+            .sp-field-bits { 
+                width: 50px; 
+                text-align: right;
+                font-family: var(--vscode-editor-font-family);
+                color: var(--vscode-descriptionForeground);
+            }
+            
+            .sp-field-offset { 
+                width: 50px; 
+                text-align: right;
+                font-family: var(--vscode-editor-font-family);
+                color: var(--vscode-descriptionForeground);
+            }
+            
+            .sp-field-value { 
+                width: 80px; 
+                text-align: right;
+                font-family: var(--vscode-editor-font-family);
+                color: var(--vscode-numberLiteral-foreground);
+            }
+            
             /* Tree */
             .sp-tree {
                 display: flex;
                 flex-direction: column;
                 gap: 2px;
-            }
-            
-            .sp-field-row {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-sm);
-                padding: var(--sp-sm) var(--sp-md);
-                border-radius: var(--sp-radius);
-                transition: background-color 0.15s ease;
-            }
-            
-            .sp-field-row:hover {
-                background-color: var(--vscode-list-hoverBackground);
             }
             
             .sp-field-row.highlighted {
@@ -1131,8 +1277,11 @@ export class StructParserPanel {
 
                 // Search button
                 document.getElementById('btnSearch')?.addEventListener('click', () => {
-                    document.getElementById('searchSection').style.display = 'block';
-                    document.getElementById('searchInput').focus();
+                    const searchSection = document.getElementById('searchSection');
+                    searchSection.style.display = searchSection.style.display === 'none' ? 'block' : 'none';
+                    if (searchSection.style.display === 'block') {
+                        document.getElementById('searchInput').focus();
+                    }
                 });
 
                 // Close search button
@@ -1163,8 +1312,8 @@ export class StructParserPanel {
                     vscode.postMessage({ command: 'clearHistory' });
                 });
 
-                // History items
-                document.querySelectorAll('.sp-history-item').forEach(item => {
+                // History chips
+                document.querySelectorAll('.sp-history-chip').forEach(item => {
                     item.addEventListener('click', () => {
                         const index = item.getAttribute('data-index');
                         vscode.postMessage({ command: 'loadHistory', index: parseInt(index) });
