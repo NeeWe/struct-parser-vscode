@@ -1,0 +1,53 @@
+{
+  "structs": [
+    {
+      "name": "ControlReg",
+      "type": "struct",
+      "size_bits": 32,
+      "fields": [
+        { "name": "enable", "type": "uint1", "bits": 1, "offset": 0 },
+        { "name": "interrupt", "type": "uint1", "bits": 1, "offset": 1 },
+        { "name": "mode", "type": "uint2", "bits": 2, "offset": 2 },
+        { "name": "reserved1", "type": "uint4", "bits": 4, "offset": 4 },
+        { "name": "prescaler", "type": "uint8", "bits": 8, "offset": 8 },
+        { "name": "timeout", "type": "uint16", "bits": 16, "offset": 16 }
+      ]
+    },
+    {
+      "name": "StatusReg",
+      "type": "struct",
+      "size_bits": 16,
+      "fields": [
+        { "name": "ready", "type": "uint1", "bits": 1, "offset": 0 },
+        { "name": "error", "type": "uint1", "bits": 1, "offset": 1 },
+        { "name": "busy", "type": "uint1", "bits": 1, "offset": 2 },
+        { "name": "status_code", "type": "uint5", "bits": 5, "offset": 3 },
+        { "name": "reserved", "type": "uint8", "bits": 8, "offset": 8 }
+      ]
+    },
+    {
+      "name": "PacketHeader",
+      "type": "struct",
+      "size_bits": 64,
+      "fields": [
+        { "name": "magic", "type": "uint16", "bits": 16, "offset": 0 },
+        { "name": "version", "type": "uint8", "bits": 8, "offset": 16 },
+        { "name": "flags", "type": "uint8", "bits": 8, "offset": 24 },
+        { "name": "length", "type": "uint16", "bits": 16, "offset": 32 },
+        { "name": "checksum", "type": "uint16", "bits": 16, "offset": 48 }
+      ]
+    }
+  ],
+  "unions": [
+    {
+      "name": "DataUnion",
+      "type": "union",
+      "size_bits": 32,
+      "fields": [
+        { "name": "u32", "type": "uint32", "bits": 32, "offset": 0 },
+        { "name": "u16", "type": "uint16", "bits": 16, "offset": 0 },
+        { "name": "u8", "type": "uint8", "bits": 8, "offset": 0 }
+      ]
+    }
+  ]
+}

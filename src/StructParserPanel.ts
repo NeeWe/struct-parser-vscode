@@ -1322,26 +1322,24 @@ export class StructParserPanel {
             }
 
             function parseValue() {
-                const hexValue = document.getElementById('hexInput').value.trim();
-                const structName = document.getElementById('structSelect').value;
+                const hexValue = document.getElementById('hexInput')?.value?.trim();
                 
                 if (!hexValue) {
                     vscode.postMessage({ command: 'alert', text: 'Please enter a hex value' });
                     return;
                 }
                 
-                if (!structName) {
-                    vscode.postMessage({ command: 'alert', text: 'Please select a struct' });
+                if (!currentStructName) {
+                    vscode.postMessage({ command: 'alert', text: 'Please select a struct from sidebar' });
                     return;
                 }
                 
-                currentStructName = structName;
                 currentHexValue = hexValue;
                 
                 vscode.postMessage({
                     command: 'parse',
                     hexValue: hexValue,
-                    structName: structName
+                    structName: currentStructName
                 });
             }
 
@@ -1367,13 +1365,11 @@ export class StructParserPanel {
                 const message = event.data;
                 switch (message.command) {
                     case 'setHexValue':
-                        document.getElementById('hexInput').value = message.hexValue;
+                        const hexInput = document.getElementById('hexInput');
+                        if (hexInput) hexInput.value = message.hexValue;
                         break;
                     case 'selectStruct':
-                        document.getElementById('structSelect').value = message.structName;
-                        break;
-                    case 'jsonImported':
-                        updateStructList(message.structNames, message.filePath);
+                        currentStructName = message.structName;
                         break;
                     case 'parseResult':
                         displayResults(message);
@@ -1385,26 +1381,16 @@ export class StructParserPanel {
                         displaySearchResults(message.results);
                         break;
                     case 'historyCleared':
-                        document.getElementById('historySection').style.display = 'none';
+                        const historySection = document.getElementById('historySection');
+                        if (historySection) historySection.style.display = 'none';
                         break;
                     case 'loadHistoryItem':
-                        document.getElementById('hexInput').value = message.hexValue;
-                        document.getElementById('structSelect').value = message.structName;
+                        const hexIn = document.getElementById('hexInput');
+                        if (hexIn) hexIn.value = message.hexValue;
+                        currentStructName = message.structName;
                         break;
                 }
             });
-
-            function updateStructList(structNames, filePath) {
-                const statusDiv = document.getElementById('importStatus');
-                statusDiv.textContent = '✓ Loaded ' + structNames.length + ' structs from ' + filePath.split('/').pop();
-                statusDiv.className = 'sp-badge sp-badge-success';
-                
-                const select = document.getElementById('structSelect');
-                select.innerHTML = '<option value="">-- Choose a struct --</option>' +
-                    structNames.map(name => '<option value="' + name.replace(/"/g, '&quot;') + '">' + name + '</option>').join('');
-                
-                document.getElementById('btnParse').disabled = false;
-            }
 
             function displayResults(data) {
                 currentFields = data.fields;
