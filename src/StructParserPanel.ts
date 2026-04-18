@@ -666,6 +666,8 @@ export class StructParserPanel {
             </div>
 
             <script>
+                // Initialize current struct name from server-rendered value
+                let currentStructName = '${structName.replace(/'/g, "\\'")}';
                 ${this._getJavaScriptCode()}
             </script>
         </body>
@@ -1251,7 +1253,6 @@ export class StructParserPanel {
             const vscode = acquireVsCodeApi();
             let currentFields = [];
             let expandedNodes = new Set();
-            let currentStructName = '';
             let currentHexValue = '';
 
             // Initialize event listeners
