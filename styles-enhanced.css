@@ -1,0 +1,353 @@
+/* Struct Parser - Enhanced UI Styles */
+
+/* ===== Section Header ===== */
+.sp-section-title-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-sm);
+}
+
+.sp-bit-count {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    padding: 2px 8px;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    border-radius: 12px;
+    font-weight: 500;
+}
+
+/* ===== Bit Field Visualization ===== */
+.sp-bitfield-viz {
+    padding: var(--sp-md);
+    background: var(--vscode-editor-background);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    overflow-x: auto;
+}
+
+.sp-bitfield-bar {
+    display: flex;
+    height: 40px;
+    border-radius: var(--sp-radius-sm);
+    overflow: hidden;
+    box-shadow: var(--sp-shadow-sm);
+}
+
+.sp-bitfield-segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 var(--sp-xs);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--vscode-editor-background);
+    cursor: pointer;
+    transition: var(--sp-transition);
+    position: relative;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sp-bitfield-segment:hover {
+    filter: brightness(1.2);
+    transform: scaleY(1.1);
+}
+
+.sp-bitfield-segment.struct { background: var(--sp-type-struct); }
+.sp-bitfield-segment.union { background: var(--sp-type-union); }
+.sp-bitfield-segment.uint { background: var(--sp-type-uint); }
+.sp-bitfield-segment.bool { background: var(--sp-type-bool); }
+
+/* ===== Field Header ===== */
+.sp-field-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-sm) var(--sp-md);
+    background: var(--vscode-panel-background);
+    border-bottom: 2px solid var(--vscode-panel-border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--vscode-descriptionForeground);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sp-field-header-main {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-sm);
+    flex: 2;
+}
+
+.sp-field-header-values {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-md);
+    flex: 1;
+    justify-content: flex-end;
+}
+
+.sp-field-h-expand {
+    width: 16px;
+}
+
+.sp-field-h-type {
+    min-width: 70px;
+}
+
+.sp-field-h-name {
+    flex: 1;
+}
+
+.sp-field-h-meta {
+    min-width: 80px;
+    text-align: right;
+}
+
+.sp-field-h-dec,
+.sp-field-h-hex,
+.sp-field-h-input {
+    min-width: 60px;
+    text-align: center;
+}
+
+/* ===== Field Row - New Layout ===== */
+.sp-field-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px var(--sp-md);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    transition: var(--sp-transition);
+    gap: var(--sp-md);
+}
+
+.sp-field-row:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.sp-field-row:last-child {
+    border-bottom: none;
+}
+
+.sp-field-row:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.sp-field-row:nth-child(even):hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+/* Field Main Section */
+.sp-field-main {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-sm);
+    flex: 2;
+    min-width: 0;
+}
+
+.sp-field-values {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-md);
+    flex: 1;
+    justify-content: flex-end;
+}
+
+/* Expand Icon */
+.sp-expand-icon {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    cursor: pointer;
+    transition: transform 0.2s var(--sp-transition);
+    color: var(--vscode-descriptionForeground);
+    flex-shrink: 0;
+}
+
+.sp-expand-icon.expandable {
+    cursor: pointer;
+}
+
+.sp-expand-icon.expandable:hover {
+    color: var(--vscode-foreground);
+}
+
+.sp-expand-icon.expanded {
+    transform: rotate(90deg);
+}
+
+/* Type Indicator */
+.sp-type-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px var(--vscode-editor-background);
+}
+
+.sp-type-indicator.struct { 
+    background: var(--sp-type-struct);
+    box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-struct-bg);
+}
+.sp-type-indicator.union { 
+    background: var(--sp-type-union);
+    box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-union-bg);
+}
+.sp-type-indicator.uint { 
+    background: var(--sp-type-uint);
+    box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-uint-bg);
+}
+.sp-type-indicator.bool { 
+    background: var(--sp-type-bool);
+    box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-bool-bg);
+}
+
+/* Field Name */
+.sp-field-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--vscode-foreground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Field Type */
+.sp-field-type {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: var(--sp-radius-sm);
+    flex-shrink: 0;
+    font-family: var(--vscode-editor-font-family);
+}
+
+.sp-field-type.struct { 
+    color: var(--sp-type-struct);
+    background: var(--sp-type-struct-bg);
+}
+.sp-field-type.union { 
+    color: var(--sp-type-union);
+    background: var(--sp-type-union-bg);
+}
+.sp-field-type.uint { 
+    color: var(--sp-type-uint);
+    background: var(--sp-type-uint-bg);
+}
+.sp-field-type.bool { 
+    color: var(--sp-type-bool);
+    background: var(--sp-type-bool-bg);
+}
+
+/* Field Meta */
+.sp-field-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-xs);
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    font-family: var(--vscode-editor-font-family);
+    flex-shrink: 0;
+}
+
+.sp-field-bits {
+    font-weight: 600;
+    color: var(--vscode-foreground);
+}
+
+.sp-field-offset::before {
+    content: '@';
+    opacity: 0.5;
+}
+
+/* Field Values */
+.sp-field-dec {
+    font-family: var(--vscode-editor-font-family);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--vscode-numberLiteral-foreground);
+    min-width: 50px;
+    text-align: center;
+    padding: 4px 8px;
+    background: var(--vscode-editor-background);
+    border-radius: var(--sp-radius-sm);
+}
+
+.sp-field-hex {
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--vscode-textPreformat-foreground);
+    min-width: 60px;
+    text-align: center;
+    padding: 4px 8px;
+    background: var(--vscode-editor-background);
+    border-radius: var(--sp-radius-sm);
+}
+
+.sp-field-input {
+    width: 80px;
+    padding: 6px 10px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: var(--sp-radius-sm);
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    font-family: var(--vscode-editor-font-family);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    transition: var(--sp-transition);
+}
+
+.sp-field-input:hover {
+    border-color: var(--vscode-focusBorder);
+}
+
+.sp-field-input:focus {
+    outline: none;
+    border-color: var(--vscode-focusBorder);
+    box-shadow: 0 0 0 2px var(--vscode-focusBorder);
+}
+
+/* ===== Children ===== */
+.sp-children {
+    display: none;
+    margin-left: var(--sp-xl);
+    border-left: 2px solid var(--vscode-panel-border);
+    padding-left: var(--sp-sm);
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.sp-children.expanded {
+    display: block;
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ===== Button Icon SVG ===== */
+.sp-btn-icon svg {
+    transition: var(--sp-transition);
+}
+
+.sp-btn-icon:hover svg {
+    transform: scale(1.1);
+}

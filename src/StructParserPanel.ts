@@ -527,15 +527,23 @@ export class StructParserPanel {
             
             html += `
                 <div class="sp-field-row" style="padding-left: ${indent}px" data-field="${field.name}">
-                    <span class="sp-field-name">${hasChildren ? '▼' : '•'} ${field.name}</span>
-                    <span class="sp-field-type">${field.type}</span>
-                    <span class="sp-field-bits">${field.bits}</span>
-                    <span class="sp-field-offset">${field.offset}</span>
-                    <span class="sp-field-dec" id="val-dec-${fieldId}">-</span>
-                    <span class="sp-field-hex" id="val-hex-${fieldId}">-</span>
-                    <input type="number" class="sp-field-input" id="input-${fieldId}" 
-                        min="0" max="${(1 << field.bits) - 1}" placeholder="-" 
-                        data-field="${field.name}" data-bits="${field.bits}">
+                    <div class="sp-field-main">
+                        <span class="sp-expand-icon ${hasChildren ? 'expandable' : ''}" data-field="${field.name}">${hasChildren ? '▶' : ''}</span>
+                        <span class="sp-type-indicator ${field.type}"></span>
+                        <span class="sp-field-name">${field.name}</span>
+                        <span class="sp-field-type ${field.type}">${field.type}</span>
+                        <span class="sp-field-meta">
+                            <span class="sp-field-bits">${field.bits}b</span>
+                            <span class="sp-field-offset">@${field.offset}</span>
+                        </span>
+                    </div>
+                    <div class="sp-field-values">
+                        <span class="sp-field-dec" id="val-dec-${fieldId}">-</span>
+                        <span class="sp-field-hex" id="val-hex-${fieldId}">-</span>
+                        <input type="number" class="sp-field-input" id="input-${fieldId}" 
+                            min="0" max="${(1 << field.bits) - 1}" placeholder="-" 
+                            data-field="${field.name}" data-bits="${field.bits}">
+                    </div>
                 </div>
             `;
             
@@ -629,21 +637,42 @@ export class StructParserPanel {
                 <!-- Struct Definition Section -->
                 <section class="sp-section sp-section-results" id="definitionSection" style="display: ${hasStruct ? 'block' : 'none'}">
                     <div class="sp-section-header">
-                        <span class="sp-section-title">Struct Definition</span>
+                        <div class="sp-section-title-wrapper">
+                            <span class="sp-section-title">Struct Definition</span>
+                            <span class="sp-bit-count">${structSize} bits total</span>
+                        </div>
                         <div class="sp-toolbar">
-                            <button id="btnSearch" class="sp-btn sp-btn-icon" title="Search Fields">🔍</button>
-                            <button id="btnCopyDef" class="sp-btn sp-btn-icon" title="Copy Definition">📋</button>
+                            <button id="btnSearch" class="sp-btn sp-btn-icon" title="Search Fields">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"/>
+                                    <path d="m21 21-4.35-4.35"/>
+                                </svg>
+                            </button>
+                            <button id="btnCopyDef" class="sp-btn sp-btn-icon" title="Copy Definition">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                            </button>
                         </div>
                     </div>
+                    
+                    <!-- Bit Field Visualization -->
+                    <div id="bitFieldViz" class="sp-bitfield-viz" style="display: none;"></div>
+                    
                     <div class="sp-section-body">
                         <div class="sp-field-header">
-                            <span class="sp-field-h-name">Field</span>
-                            <span class="sp-field-h-type">Type</span>
-                            <span class="sp-field-h-bits">Bits</span>
-                            <span class="sp-field-h-offset">Offs</span>
-                            <span class="sp-field-h-dec">Dec</span>
-                            <span class="sp-field-h-hex">Hex</span>
-                            <span class="sp-field-h-input">Edit</span>
+                            <div class="sp-field-header-main">
+                                <span class="sp-field-h-expand"></span>
+                                <span class="sp-field-h-type">Type</span>
+                                <span class="sp-field-h-name">Field Name</span>
+                                <span class="sp-field-h-meta">Size / Offset</span>
+                            </div>
+                            <div class="sp-field-header-values">
+                                <span class="sp-field-h-dec">DEC</span>
+                                <span class="sp-field-h-hex">HEX</span>
+                                <span class="sp-field-h-input">Value</span>
+                            </div>
                         </div>
                         <div id="fieldList" class="sp-field-list">
                             ${hasStruct ? this._renderFieldList(this._currentStruct!.fields) : ''}
@@ -678,14 +707,21 @@ export class StructParserPanel {
                 --sp-md: calc(var(--sp-unit) * 3);
                 --sp-lg: calc(var(--sp-unit) * 4);
                 --sp-xl: calc(var(--sp-unit) * 6);
-                --sp-radius: 6px;
-                --sp-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                --sp-radius: 8px;
+                --sp-radius-sm: 4px;
+                --sp-shadow-sm: 0 1px 2px rgba(0,0,0,0.08);
+                --sp-shadow-md: 0 2px 8px rgba(0,0,0,0.12);
+                --sp-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                 
-                /* Type Colors */
+                /* Type Colors - Enhanced */
                 --sp-type-struct: #4EC9B0;
+                --sp-type-struct-bg: rgba(78, 201, 176, 0.1);
                 --sp-type-union: #C586C0;
-                --sp-type-uint: #9CDCFE;
-                --sp-type-bool: #569CD6;
+                --sp-type-union-bg: rgba(197, 134, 192, 0.1);
+                --sp-type-uint: #569CD6;
+                --sp-type-uint-bg: rgba(86, 156, 214, 0.1);
+                --sp-type-bool: #DCDCAA;
+                --sp-type-bool-bg: rgba(220, 220, 170, 0.1);
                 
                 /* Status */
                 --sp-success: #4EC9B0;
@@ -1150,35 +1186,110 @@ export class StructParserPanel {
                 flex-direction: column;
             }
             
+            /* ===== Section Header ===== */
+            .sp-section-title-wrapper {
+                display: flex;
+                align-items: center;
+                gap: var(--sp-sm);
+            }
+            
+            .sp-bit-count {
+                font-size: 11px;
+                color: var(--vscode-badge-foreground);
+                padding: 2px 8px;
+                background: var(--vscode-badge-background);
+                border-radius: 12px;
+                font-weight: 500;
+            }
+            
+            /* ===== Bit Field Visualization ===== */
+            .sp-bitfield-viz {
+                padding: var(--sp-md);
+                background: var(--vscode-editor-background);
+                border-bottom: 1px solid var(--vscode-panel-border);
+                overflow-x: auto;
+            }
+            
+            .sp-bitfield-bar {
+                display: flex;
+                height: 32px;
+                border-radius: var(--sp-radius-sm);
+                overflow: hidden;
+                box-shadow: var(--sp-shadow-sm);
+            }
+            
+            .sp-bitfield-segment {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0 var(--sp-xs);
+                font-size: 10px;
+                font-weight: 600;
+                color: var(--vscode-editor-background);
+                cursor: pointer;
+                transition: var(--sp-transition);
+                position: relative;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            
+            .sp-bitfield-segment:hover {
+                filter: brightness(1.2);
+                transform: scaleY(1.05);
+            }
+            
+            .sp-bitfield-segment.struct { background: var(--sp-type-struct); }
+            .sp-bitfield-segment.union { background: var(--sp-type-union); }
+            .sp-bitfield-segment.uint { background: var(--sp-type-uint); }
+            .sp-bitfield-segment.bool { background: var(--sp-type-bool); }
+            
             .sp-field-header {
                 display: flex;
                 align-items: center;
+                justify-content: space-between;
                 padding: var(--sp-sm) var(--sp-md);
                 background-color: var(--vscode-panel-background);
-                border-bottom: 1px solid var(--vscode-panel-border);
+                border-bottom: 2px solid var(--vscode-panel-border);
                 font-size: 11px;
                 font-weight: 600;
                 color: var(--vscode-descriptionForeground);
                 text-transform: uppercase;
+                letter-spacing: 0.5px;
             }
             
-            .sp-field-header > span { flex: 1; text-align: center; }
-            .sp-field-h-name { flex: 2; text-align: left; }
-            .sp-field-h-type { flex: 1.5; }
-            .sp-field-h-bits { flex: 0.8; }
-            .sp-field-h-offset { flex: 0.8; }
-            .sp-field-h-dec { flex: 1; }
-            .sp-field-h-hex { flex: 1; }
-            .sp-field-h-input { flex: 1; }
+            .sp-field-header-main {
+                display: flex;
+                align-items: center;
+                gap: var(--sp-sm);
+                flex: 2;
+            }
+            
+            .sp-field-header-values {
+                display: flex;
+                align-items: center;
+                gap: var(--sp-md);
+                flex: 1;
+                justify-content: flex-end;
+            }
+            
+            .sp-field-h-expand { width: 16px; }
+            .sp-field-h-type { min-width: 70px; }
+            .sp-field-h-name { flex: 1; }
+            .sp-field-h-meta { min-width: 80px; text-align: right; }
+            .sp-field-h-dec, .sp-field-h-hex, .sp-field-h-input { 
+                min-width: 60px; 
+                text-align: center; 
+            }
             
             .sp-field-row {
                 display: flex;
                 align-items: center;
-                padding: 8px var(--sp-md);
+                justify-content: space-between;
+                padding: 10px var(--sp-md);
                 border-bottom: 1px solid var(--vscode-panel-border);
-                font-size: 12px;
-                gap: 8px;
-                transition: background-color 0.15s ease;
+                transition: var(--sp-transition);
+                gap: var(--sp-md);
             }
             
             .sp-field-row:hover {
@@ -1197,72 +1308,175 @@ export class StructParserPanel {
                 background-color: var(--vscode-list-hoverBackground);
             }
             
-            .sp-field-row > span,
-            .sp-field-row > input { flex: 1; text-align: center; }
-            
-            .sp-field-name { 
+            .sp-field-main {
+                display: flex;
+                align-items: center;
+                gap: var(--sp-sm);
                 flex: 2;
-                text-align: left;
-                font-weight: 500;
+                min-width: 0;
+            }
+            
+            .sp-field-values {
+                display: flex;
+                align-items: center;
+                gap: var(--sp-md);
+                flex: 1;
+                justify-content: flex-end;
+            }
+            
+            .sp-expand-icon {
+                width: 16px;
+                height: 16px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 10px;
+                cursor: pointer;
+                transition: transform 0.2s ease;
+                color: var(--vscode-descriptionForeground);
+                flex-shrink: 0;
+            }
+            
+            .sp-expand-icon.expandable {
+                cursor: pointer;
+            }
+            
+            .sp-expand-icon.expandable:hover {
+                color: var(--vscode-foreground);
+            }
+            
+            .sp-expand-icon.expanded {
+                transform: rotate(90deg);
+            }
+            
+            .sp-type-indicator {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                flex-shrink: 0;
+                box-shadow: 0 0 0 2px var(--vscode-editor-background);
+            }
+            
+            .sp-type-indicator.struct { 
+                background: var(--sp-type-struct);
+                box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-struct-bg);
+            }
+            .sp-type-indicator.union { 
+                background: var(--sp-type-union);
+                box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-union-bg);
+            }
+            .sp-type-indicator.uint { 
+                background: var(--sp-type-uint);
+                box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-uint-bg);
+            }
+            .sp-type-indicator.bool { 
+                background: var(--sp-type-bool);
+                box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-bool-bg);
+            }
+            
+            .sp-field-name {
+                font-weight: 600;
+                font-size: 13px;
                 color: var(--vscode-foreground);
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
-            }
-            
-            .sp-field-type { 
-                flex: 1.5;
-                color: var(--vscode-symbolIcon-colorForeground);
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-            
-            .sp-field-bits { 
-                flex: 0.8;
-                font-family: var(--vscode-editor-font-family);
-                font-size: 11px;
-                color: var(--vscode-descriptionForeground);
-            }
-            
-            .sp-field-offset { 
-                flex: 0.8;
-                font-family: var(--vscode-editor-font-family);
-                font-size: 11px;
-                color: var(--vscode-descriptionForeground);
-            }
-            
-            .sp-field-dec { 
                 flex: 1;
-                text-align: right;
+                min-width: 0;
+            }
+            
+            .sp-field-type {
+                font-size: 11px;
+                font-weight: 500;
+                padding: 2px 8px;
+                border-radius: var(--sp-radius-sm);
+                flex-shrink: 0;
                 font-family: var(--vscode-editor-font-family);
-                font-size: 12px;
+            }
+            
+            .sp-field-type.struct { 
+                color: var(--sp-type-struct);
+                background: var(--sp-type-struct-bg);
+            }
+            .sp-field-type.union { 
+                color: var(--sp-type-union);
+                background: var(--sp-type-union-bg);
+            }
+            .sp-field-type.uint { 
+                color: var(--sp-type-uint);
+                background: var(--sp-type-uint-bg);
+            }
+            .sp-field-type.bool { 
+                color: var(--sp-type-bool);
+                background: var(--sp-type-bool-bg);
+            }
+            
+            .sp-field-meta {
+                display: flex;
+                align-items: center;
+                gap: var(--sp-xs);
+                font-size: 11px;
+                color: var(--vscode-descriptionForeground);
+                font-family: var(--vscode-editor-font-family);
+                flex-shrink: 0;
+            }
+            
+            .sp-field-bits {
+                font-weight: 600;
+                color: var(--vscode-foreground);
+            }
+            
+            .sp-field-offset::before {
+                content: '@';
+                opacity: 0.5;
+            }
+            
+            .sp-field-dec {
+                font-family: var(--vscode-editor-font-family);
+                font-size: 13px;
+                font-weight: 600;
                 color: var(--vscode-numberLiteral-foreground);
+                min-width: 50px;
+                text-align: center;
+                padding: 4px 8px;
+                background: var(--vscode-editor-background);
+                border-radius: var(--sp-radius-sm);
             }
             
-            .sp-field-hex { 
-                flex: 1;
-                text-align: right;
+            .sp-field-hex {
                 font-family: var(--vscode-editor-font-family);
                 font-size: 12px;
+                font-weight: 500;
                 color: var(--vscode-textPreformat-foreground);
+                min-width: 60px;
+                text-align: center;
+                padding: 4px 8px;
+                background: var(--vscode-editor-background);
+                border-radius: var(--sp-radius-sm);
             }
             
             .sp-field-input {
-                flex: 1;
-                padding: 2px 6px;
+                width: 80px;
+                padding: 6px 10px;
                 border: 1px solid var(--vscode-input-border);
-                border-radius: 4px;
+                border-radius: var(--sp-radius-sm);
                 background: var(--vscode-input-background);
                 color: var(--vscode-input-foreground);
                 font-family: var(--vscode-editor-font-family);
-                font-size: 12px;
-                text-align: right;
+                font-size: 13px;
+                font-weight: 500;
+                text-align: center;
+                transition: var(--sp-transition);
+            }
+            
+            .sp-field-input:hover {
+                border-color: var(--vscode-focusBorder);
             }
             
             .sp-field-input:focus {
                 outline: none;
                 border-color: var(--vscode-focusBorder);
+                box-shadow: 0 0 0 2px var(--vscode-focusBorder);
             }
             
             /* Tree */
@@ -1358,14 +1572,25 @@ export class StructParserPanel {
             .sp-children {
                 display: none;
                 margin-left: var(--sp-xl);
-                border-left: 1px solid var(--vscode-panel-border);
+                border-left: 2px solid var(--vscode-panel-border);
                 padding-left: var(--sp-sm);
+                background: rgba(0, 0, 0, 0.02);
             }
             
             .sp-children.expanded {
-                display: flex;
-                flex-direction: column;
-                gap: 2px;
+                display: block;
+                animation: slideDown 0.2s ease-out;
+            }
+            
+            @keyframes slideDown {
+                from {
+                    opacity: 0;
+                    transform: translateY(-8px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
             }
             
             /* Utilities */
@@ -1586,11 +1811,60 @@ export class StructParserPanel {
                 // Update field values in Struct Definition section
                 updateFieldValues(data.fields);
                 
+                // Render bit field visualization
+                renderBitFieldVisualization(data.struct.fields, data.struct.size_bits);
+                
                 // Show export button
                 const exportContainer = document.getElementById('exportContainer');
                 if (exportContainer) {
                     exportContainer.style.display = 'block';
                 }
+            }
+            
+            function renderBitFieldVisualization(fields, totalBits) {
+                const vizContainer = document.getElementById('bitFieldViz');
+                if (!vizContainer) return;
+                
+                let html = '<div class="sp-bitfield-bar">';
+                
+                fields.forEach(field => {
+                    const widthPercent = (field.bits / totalBits * 100).toFixed(2);
+                    const typeClass = field.type === 'struct' ? 'struct' : 
+                                     field.type === 'union' ? 'union' : 
+                                     field.type === 'bool' ? 'bool' : 'uint';
+                    
+                    html += '<div class="sp-bitfield-segment ' + typeClass + '" ';
+                    html += 'style="width: ' + widthPercent + '%" ';
+                    html += 'title="' + field.name + ' (' + field.bits + ' bits)" ';
+                    html += 'data-field="' + field.name + '">';
+                    
+                    if (widthPercent > 8) {
+                        html += field.name;
+                    } else if (widthPercent > 4) {
+                        html += field.name.substring(0, 3);
+                    }
+                    
+                    html += '</div>';
+                });
+                
+                html += '</div>';
+                vizContainer.innerHTML = html;
+                vizContainer.style.display = 'block';
+                
+                // Add click handlers to segments
+                vizContainer.querySelectorAll('.sp-bitfield-segment').forEach(segment => {
+                    segment.addEventListener('click', () => {
+                        const fieldName = segment.getAttribute('data-field');
+                        const fieldRow = document.querySelector('.sp-field-row[data-field="' + fieldName + '"]');
+                        if (fieldRow) {
+                            fieldRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            fieldRow.style.background = 'var(--vscode-list-activeSelectionBackground)';
+                            setTimeout(() => {
+                                fieldRow.style.background = '';
+                            }, 1000);
+                        }
+                    });
+                });
             }
             
             function updateFieldValues(fields) {
