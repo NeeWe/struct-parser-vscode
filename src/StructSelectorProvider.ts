@@ -138,9 +138,6 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
         if (struct) {
             this._onStructSelected.fire(struct);
-            
-            // Open the main panel if not already open
-            vscode.commands.executeCommand('structParser.openViewer');
         }
     }
 
