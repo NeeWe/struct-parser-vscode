@@ -38,7 +38,7 @@ interface HistoryItem {
 }
 
 export class StructParserPanel {
-    public static currentPanel: StructParserPanel | undefined;
+    public static panels: Map<string, StructParserPanel> = new Map();
     public static readonly viewType = 'structParser';
 
     private readonly _panel: vscode.WebviewPanel;
@@ -52,22 +52,20 @@ export class StructParserPanel {
         hexValue: string;
         binaryValue: string;
     } | null = null;
-    private _history: HistoryItem[] = [];
 
-    public static createOrShow(extensionUri: vscode.Uri): StructParserPanel {
-        const column = vscode.window.activeTextEditor
-            ? vscode.window.activeTextEditor.viewColumn
-            : undefined;
-
-        if (StructParserPanel.currentPanel) {
-            StructParserPanel.currentPanel._panel.reveal(column);
-            return StructParserPanel.currentPanel;
+    public static createOrShow(extensionUri: vscode.Uri, structName?: string): StructParserPanel {
+        // If struct name provided and panel exists, reveal it
+        if (structName && StructParserPanel.panels.has(structName)) {
+            const panel = StructParserPanel.panels.get(structName)!;
+            panel._panel.reveal(vscode.ViewColumn.Beside);
+            return panel;
         }
 
+        // Create new panel
         const panel = vscode.window.createWebviewPanel(
             StructParserPanel.viewType,
-            'Struct Parser',
-            column || vscode.ViewColumn.One,
+            structName ? `Struct: ${structName}` : 'Struct Parser',
+            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: false },
             {
                 enableScripts: true,
                 localResourceRoots: [extensionUri],
@@ -75,14 +73,22 @@ export class StructParserPanel {
             }
         );
 
-        StructParserPanel.currentPanel = new StructParserPanel(panel, extensionUri);
-        return StructParserPanel.currentPanel;
+        const parserPanel = new StructParserPanel(panel, extensionUri);
+
+        // Store panel reference if struct name provided
+        if (structName) {
+            StructParserPanel.panels.set(structName, parserPanel);
+            panel.onDidDispose(() => {
+                StructParserPanel.panels.delete(structName);
+            });
+        }
+
+        return parserPanel;
     }
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
         this._panel = panel;
         this._extensionUri = extensionUri;
-        this._loadHistory();
         this._loadStructData();
         this._update();
 
@@ -101,21 +107,6 @@ export class StructParserPanel {
                     case 'search':
                         this._searchFields(message.searchTerm);
                         return;
-                    case 'importJson':
-                        await this._importJsonFile();
-                        return;
-                    case 'export':
-                        this._exportResults(message.format);
-                        return;
-                    case 'copy':
-                        this._copyToClipboard(message.text);
-                        return;
-                    case 'loadHistory':
-                        this._loadHistoryItem(message.index);
-                        return;
-                    case 'clearHistory':
-                        this._clearHistory();
-                        return;
                     case 'alert':
                         vscode.window.showErrorMessage(message.text);
                         return;
@@ -124,47 +115,6 @@ export class StructParserPanel {
             null,
             this._disposables
         );
-    }
-
-    private _loadHistory() {
-        const config = vscode.workspace.getConfiguration('structParser');
-        this._history = config.get<HistoryItem[]>('history') || [];
-    }
-
-    private _saveHistory() {
-        const config = vscode.workspace.getConfiguration('structParser');
-        config.update('history', this._history.slice(0, 20), true);
-    }
-
-    private _addHistoryItem(structName: string, hexValue: string) {
-        const item: HistoryItem = {
-            timestamp: Date.now(),
-            structName,
-            hexValue,
-            description: `${structName} = 0x${hexValue}`
-        };
-        this._history.unshift(item);
-        if (this._history.length > 20) {
-            this._history = this._history.slice(0, 20);
-        }
-        this._saveHistory();
-    }
-
-    private _clearHistory() {
-        this._history = [];
-        this._saveHistory();
-        this._panel.webview.postMessage({ command: 'historyCleared' });
-    }
-
-    private _loadHistoryItem(index: number) {
-        const item = this._history[index];
-        if (item) {
-            this._panel.webview.postMessage({
-                command: 'loadHistoryItem',
-                structName: item.structName,
-                hexValue: item.hexValue
-            });
-        }
     }
 
     private async _importJsonFile() {
@@ -282,8 +232,6 @@ export class StructParserPanel {
             hexValue: hexValue,
             binaryValue: binaryValue
         };
-
-        this._addHistoryItem(structName, hexValue);
 
         this._panel.webview.postMessage({
             command: 'parseResult',
@@ -620,20 +568,6 @@ export class StructParserPanel {
                         </button>
                     </div>
                 </section>
-
-                <!-- History Bar (Horizontal) -->
-                <div class="sp-history-bar" id="historySection" style="display: ${this._history.length > 0 && hasStruct ? 'flex' : 'none'}">
-                    <span class="sp-history-label">🕐</span>
-                    <div class="sp-history-items">
-                        ${this._history.slice(0, 3).map((item, index) => `
-                            <div class="sp-history-chip" data-index="${index}" title="${item.structName} = 0x${item.hexValue}">
-                                <span>${item.structName}</span>
-                                <span class="sp-history-chip-value">0x${item.hexValue.substring(0, 6)}${item.hexValue.length > 6 ? '...' : ''}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <button id="btnClearHistory" class="sp-btn sp-btn-xs sp-btn-text">Clear</button>
-                </div>
 
                 <!-- Struct Definition Section -->
                 <section class="sp-section sp-section-results" id="definitionSection" style="display: ${hasStruct ? 'block' : 'none'}">
@@ -1648,7 +1582,13 @@ export class StructParserPanel {
     }
 
     public dispose() {
-        StructParserPanel.currentPanel = undefined;
+        // Remove from panels map
+        for (const [name, panel] of StructParserPanel.panels) {
+            if (panel === this) {
+                StructParserPanel.panels.delete(name);
+                break;
+            }
+        }
         this._panel.dispose();
 
         while (this._disposables.length) {

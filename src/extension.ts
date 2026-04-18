@@ -44,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Handle struct selection from sidebar
     structSelectorProvider.onStructSelected((struct) => {
-        const panel = StructParserPanel.createOrShow(context.extensionUri);
+        const panel = StructParserPanel.createOrShow(context.extensionUri, struct.name);
         panel.showStructDefinition(struct);
     });
 
