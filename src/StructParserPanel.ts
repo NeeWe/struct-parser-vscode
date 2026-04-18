@@ -55,15 +55,19 @@ export class StructParserPanel {
     private _history: HistoryItem[] = [];
 
     public static createOrShow(extensionUri: vscode.Uri): StructParserPanel {
+        const column = vscode.window.activeTextEditor
+            ? vscode.window.activeTextEditor.viewColumn
+            : undefined;
+
         if (StructParserPanel.currentPanel) {
-            StructParserPanel.currentPanel._panel.reveal(vscode.ViewColumn.Beside);
+            StructParserPanel.currentPanel._panel.reveal(column);
             return StructParserPanel.currentPanel;
         }
 
         const panel = vscode.window.createWebviewPanel(
             StructParserPanel.viewType,
             'Struct Parser',
-            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: false },
+            column || vscode.ViewColumn.One,
             {
                 enableScripts: true,
                 localResourceRoots: [extensionUri],
