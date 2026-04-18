@@ -79,7 +79,7 @@ export class StructParserPanel {
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
         this._panel.webview.onDidReceiveMessage(
-            message => {
+            async message => {
                 switch (message.command) {
                     case 'parse':
                         this._parseHexValue(message.hexValue, message.structName);
@@ -90,6 +90,9 @@ export class StructParserPanel {
                     case 'search':
                         this._searchFields(message.searchTerm);
                         return;
+                    case 'importJson':
+                        await this._importJsonFile();
+                        return;
                     case 'alert':
                         vscode.window.showErrorMessage(message.text);
                         return;
@@ -98,6 +101,48 @@ export class StructParserPanel {
             null,
             this._disposables
         );
+    }
+
+    private async _importJsonFile() {
+        const result = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            filters: {
+                'JSON files': ['json'],
+                'All files': ['*']
+            },
+            title: 'Select Struct Parser JSON File'
+        });
+
+        if (result && result[0]) {
+            try {
+                const content = fs.readFileSync(result[0].fsPath, 'utf-8');
+                this._structData = JSON.parse(content);
+                
+                if (!this._structData) {
+                    vscode.window.showErrorMessage('Invalid JSON format');
+                    return;
+                }
+                
+                // Save to configuration
+                const config = vscode.workspace.getConfiguration('structParser');
+                await config.update('jsonPath', result[0].fsPath, true);
+                
+                // Update the webview with new struct list
+                const structNames = [...this._structData.structs, ...this._structData.unions].map(s => s.name);
+                
+                this._panel.webview.postMessage({
+                    command: 'jsonImported',
+                    structNames: structNames,
+                    filePath: result[0].fsPath
+                });
+                
+                vscode.window.showInformationMessage(`Loaded ${structNames.length} structs from ${path.basename(result[0].fsPath)}`);
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to load JSON: ${error}`);
+            }
+        }
     }
 
     private _loadStructData() {
@@ -545,6 +590,12 @@ export class StructParserPanel {
                 
                 <div class="input-section">
                     <div class="input-group">
+                        <label>Struct Definition:</label>
+                        <button onclick="importJson()" style="width: 100%;">Import JSON File</button>
+                        <div class="info" id="importStatus">${structNames.length > 0 ? `Loaded ${structNames.length} structs` : 'No struct data loaded - click Import to load'}</div>
+                    </div>
+                    
+                    <div class="input-group">
                         <label for="hexInput">Hex Value:</label>
                         <input type="text" id="hexInput" placeholder="0x1234ABCD or 1234ABCD" />
                         <div class="info">Enter hex value (with or without 0x prefix)</div>
@@ -558,7 +609,7 @@ export class StructParserPanel {
                         </select>
                     </div>
                     
-                    <button onclick="parseValue()">Parse</button>
+                    <button onclick="parseValue()" ${structNames.length === 0 ? 'disabled' : ''}>Parse</button>
                 </div>
                 
                 <div class="input-section" id="searchSection" style="display: none;">
@@ -595,8 +646,34 @@ export class StructParserPanel {
                         case 'searchResults':
                             displaySearchResults(message.results);
                             break;
+                        case 'jsonImported':
+                            updateStructList(message.structNames, message.filePath);
+                            break;
                     }
                 });
+                
+                function importJson() {
+                    vscode.postMessage({ command: 'importJson' });
+                }
+                
+                function updateStructList(structNames, filePath) {
+                    // Update import status
+                    const statusDiv = document.getElementById('importStatus');
+                    if (statusDiv) {
+                        statusDiv.textContent = 'Loaded ' + structNames.length + ' structs from ' + filePath.split('/').pop();
+                    }
+                    
+                    // Update struct select dropdown
+                    const select = document.getElementById('structSelect');
+                    select.innerHTML = '<option value="">-- Select a struct --</option>' +
+                        structNames.map(function(name) { return '<option value="' + name + '">' + name + '</option>'; }).join('');
+                    
+                    // Enable parse button
+                    const parseBtn = document.querySelector('button[onclick="parseValue()"]');
+                    if (parseBtn) {
+                        parseBtn.disabled = false;
+                    }
+                }
                 
                 function parseValue() {
                     const hexValue = document.getElementById('hexInput').value.trim();
