@@ -162,7 +162,17 @@ export class StructParserPanel {
         }
 
         const hexClean = hexValue.replace(/^0x/i, '');
-        const fullValue = BigInt('0x' + hexClean);
+        let fullValue = BigInt('0x' + hexClean);
+        
+        // Handle data width: pad with zeros if smaller, truncate if larger
+        const maxValue = (BigInt(1) << BigInt(structDef.size_bits)) - BigInt(1);
+        
+        if (fullValue > maxValue) {
+            // Truncate: keep only the lower bits that fit
+            fullValue = fullValue & maxValue;
+        }
+        
+        // Convert to binary, padded to struct size
         const binaryValue = fullValue.toString(2).padStart(structDef.size_bits, '0');
 
         const parsedFields = this._parseFields(structDef.fields, binaryValue, fullValue, structDef.size_bits);
@@ -180,7 +190,8 @@ export class StructParserPanel {
             fields: parsedFields,
             hexValue: hexValue,
             binaryValue: binaryValue,
-            fullHexValue: '0x' + fullValue.toString(16).toUpperCase().padStart(Math.ceil(structDef.size_bits / 4), '0')
+            fullHexValue: '0x' + fullValue.toString(16).toUpperCase().padStart(Math.ceil(structDef.size_bits / 4), '0'),
+            adjustedValue: fullValue.toString(16).toUpperCase() !== hexClean.toUpperCase()
         });
     }
 
@@ -630,8 +641,11 @@ export class StructParserPanel {
                     document.getElementById('searchSection').style.display = 'block';
                     
                     let html = '<div class="full-value">';
-                    html += '<div class="label">Full Value</div>';
+                    html += '<div class="label">Full Value' + (data.adjustedValue ? ' <span style="color: var(--vscode-editorWarning-foreground);">(adjusted)</span>' : '') + '</div>';
                     html += '<div class="value">' + data.fullHexValue + '</div>';
+                    if (data.adjustedValue) {
+                        html += '<div class="info" style="margin-top: 5px;">Input value was truncated/padded to fit struct size</div>';
+                    }
                     html += '</div>';
                     
                     html += '<div id="treeRoot">';
