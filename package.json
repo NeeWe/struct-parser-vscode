@@ -1,0 +1,70 @@
+{
+  "name": "struct-parser-vscode",
+  "displayName": "Struct Parser Viewer",
+  "description": "Parse and visualize C-style struct data from hex values",
+  "version": "1.0.0",
+  "publisher": "neewe",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Visualization",
+    "Debuggers",
+    "Data Science"
+  ],
+  "keywords": [
+    "struct",
+    "parser",
+    "hex",
+    "binary",
+    "embedded",
+    "register"
+  ],
+  "activationEvents": [
+    "onCommand:structParser.openViewer"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "structParser.openViewer",
+        "title": "Open Struct Parser Viewer",
+        "category": "Struct Parser"
+      },
+      {
+        "command": "structParser.parseFromHex",
+        "title": "Parse Hex Value",
+        "category": "Struct Parser"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "structParser.parseFromHex",
+          "when": "editorHasSelection",
+          "group": "9_cutcopypaste@5"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Struct Parser",
+      "properties": {
+        "structParser.jsonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the struct parser JSON output file"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^5.0.0"
+  }
+}
