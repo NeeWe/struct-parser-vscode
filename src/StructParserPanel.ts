@@ -214,17 +214,39 @@ export class StructParserPanel {
         }
 
         const hexClean = hexValue.replace(/^0x/i, '');
+        const inputBits = hexClean.length * 4; // 每个16进制字符=4bit
         let fullValue = BigInt('0x' + hexClean);
         
-        const maxValue = (BigInt(1) << BigInt(structDef.size_bits)) - BigInt(1);
+        const structBits = structDef.size_bits;
         
-        if (fullValue > maxValue) {
-            fullValue = fullValue & maxValue;
+        // 处理位宽对齐：不足补0，超出截断
+        let adjustedValue = fullValue;
+        let wasAdjusted = false;
+        
+        if (inputBits < structBits) {
+            // 输入不足：在低位补0（左移差值）
+            const padding = structBits - inputBits;
+            adjustedValue = fullValue << BigInt(padding);
+            wasAdjusted = true;
+            console.log(`[StructParser] Padding ${padding} bits: 0x${hexClean} -> 0x${adjustedValue.toString(16).toUpperCase()}`);
+        } else if (inputBits > structBits) {
+            // 输入超出：保留高位（右移差值）
+            const excess = inputBits - structBits;
+            adjustedValue = fullValue >> BigInt(excess);
+            wasAdjusted = true;
+            console.log(`[StructParser] Truncating ${excess} bits: 0x${hexClean} -> 0x${adjustedValue.toString(16).toUpperCase()}`);
         }
         
-        const binaryValue = fullValue.toString(2).padStart(structDef.size_bits, '0');
+        // 确保值不超过结构体范围
+        const maxValue = (BigInt(1) << BigInt(structBits)) - BigInt(1);
+        if (adjustedValue > maxValue) {
+            adjustedValue = adjustedValue & maxValue;
+            wasAdjusted = true;
+        }
+        
+        const binaryValue = adjustedValue.toString(2).padStart(structBits, '0');
 
-        const parsedFields = this._parseFields(structDef.fields, binaryValue, fullValue, structDef.size_bits);
+        const parsedFields = this._parseFields(structDef.fields, binaryValue, adjustedValue, structBits);
 
         this._currentParsedData = {
             struct: structDef,
@@ -233,14 +255,18 @@ export class StructParserPanel {
             binaryValue: binaryValue
         };
 
+        // 计算实际使用的16进制值
+        const actualHex = '0x' + adjustedValue.toString(16).toUpperCase().padStart(Math.ceil(structBits / 4), '0');
+
         this._panel.webview.postMessage({
             command: 'parseResult',
             struct: structDef,
             fields: parsedFields,
             hexValue: hexValue,
+            actualHexValue: actualHex,
             binaryValue: binaryValue,
-            fullHexValue: '0x' + fullValue.toString(16).toUpperCase().padStart(Math.ceil(structDef.size_bits / 4), '0'),
-            adjustedValue: fullValue.toString(16).toUpperCase() !== hexClean.toUpperCase()
+            fullHexValue: actualHex,
+            adjustedValue: wasAdjusted
         });
     }
 
@@ -1488,9 +1514,32 @@ export class StructParserPanel {
                         break;
                     case 'parseResult':
                         displayResults(message);
+                        // 回刷实际使用的16进制值到输入框
+                        if (message.actualHexValue) {
+                            const hexInput = document.getElementById('hexInput');
+                            if (hexInput) {
+                                hexInput.value = message.actualHexValue;
+                            }
+                        }
                         break;
                     case 'fieldUpdated':
-                        updateFieldDisplay(message);
+                        // 立即更新DEC、HEX列和输入框的值
+                        const fieldId = message.fieldPath.join('_').replace(/[^a-zA-Z0-9_]/g, '_');
+                        const simpleFieldId = message.fieldPath[message.fieldPath.length - 1].replace(/[^a-zA-Z0-9]/g, '_');
+                        
+                        const decEl = document.getElementById('val-dec-' + simpleFieldId);
+                        const hexEl = document.getElementById('val-hex-' + simpleFieldId);
+                        const inputEl = document.getElementById('input-' + simpleFieldId);
+                        
+                        if (decEl) decEl.textContent = message.newValue;
+                        if (hexEl) hexEl.textContent = message.newHex;
+                        if (inputEl) inputEl.value = message.newValue;
+                        
+                        // 如果有完整的16进制值，也更新
+                        if (message.fullHexValue) {
+                            const fullHexEl = document.getElementById('fullValue');
+                            if (fullHexEl) fullHexEl.textContent = message.fullHexValue;
+                        }
                         break;
                     case 'searchResults':
                         displaySearchResults(message.results);
