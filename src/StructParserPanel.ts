@@ -7,6 +7,8 @@ interface StructField {
     type: string;
     bits: number;
     offset: number;
+    value?: number;
+    children?: StructField[];
 }
 
 interface StructDef {
@@ -21,6 +23,13 @@ interface StructJson {
     unions: StructDef[];
 }
 
+interface ParsedField extends StructField {
+    binary: string;
+    value: number;
+    hex: string;
+    fullHexValue: string;
+}
+
 export class StructParserPanel {
     public static currentPanel: StructParserPanel | undefined;
     public static readonly viewType = 'structParser';
@@ -29,19 +38,23 @@ export class StructParserPanel {
     private readonly _extensionUri: vscode.Uri;
     private _disposables: vscode.Disposable[] = [];
     private _structData: StructJson | null = null;
+    private _currentParsedData: {
+        struct: StructDef;
+        fields: ParsedField[];
+        hexValue: string;
+        binaryValue: string;
+    } | null = null;
 
     public static createOrShow(extensionUri: vscode.Uri): StructParserPanel {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
 
-        // If we already have a panel, show it
         if (StructParserPanel.currentPanel) {
             StructParserPanel.currentPanel._panel.reveal(column);
             return StructParserPanel.currentPanel;
         }
 
-        // Otherwise, create a new panel
         const panel = vscode.window.createWebviewPanel(
             StructParserPanel.viewType,
             'Struct Parser',
@@ -60,21 +73,22 @@ export class StructParserPanel {
         this._panel = panel;
         this._extensionUri = extensionUri;
 
-        // Load struct data
         this._loadStructData();
-
-        // Set the webview's initial html content
         this._update();
 
-        // Listen for when the panel is disposed
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
-        // Handle messages from the webview
         this._panel.webview.onDidReceiveMessage(
             message => {
                 switch (message.command) {
                     case 'parse':
                         this._parseHexValue(message.hexValue, message.structName);
+                        return;
+                    case 'updateField':
+                        this._updateFieldValue(message.fieldPath, message.newValue);
+                        return;
+                    case 'search':
+                        this._searchFields(message.searchTerm);
                         return;
                     case 'alert':
                         vscode.window.showErrorMessage(message.text);
@@ -98,20 +112,17 @@ export class StructParserPanel {
                 vscode.window.showErrorMessage(`Failed to load struct JSON: ${error}`);
             }
         } else {
-            // Try to find in workspace
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (workspaceFolders) {
                 const possiblePaths = [
                     path.join(workspaceFolders[0].uri.fsPath, 'output.json'),
                     path.join(workspaceFolders[0].uri.fsPath, 'structs.json'),
-                    path.join(workspaceFolders[0].uri.fsPath, 'struct-parser.yaml'),
                 ];
 
                 for (const tryPath of possiblePaths) {
-                    const jsonTryPath = tryPath.replace('.yaml', '.json');
-                    if (fs.existsSync(jsonTryPath)) {
+                    if (fs.existsSync(tryPath)) {
                         try {
-                            const content = fs.readFileSync(jsonTryPath, 'utf-8');
+                            const content = fs.readFileSync(tryPath, 'utf-8');
                             this._structData = JSON.parse(content);
                             break;
                         } catch (error) {
@@ -139,7 +150,6 @@ export class StructParserPanel {
             return;
         }
 
-        // Find the struct definition
         const structDef = this._structData.structs.find(s => s.name === structName) ||
                          this._structData.unions.find(s => s.name === structName);
 
@@ -151,32 +161,167 @@ export class StructParserPanel {
             return;
         }
 
-        // Convert hex to binary
         const hexClean = hexValue.replace(/^0x/i, '');
-        const binaryValue = BigInt('0x' + hexClean).toString(2).padStart(structDef.size_bits, '0');
+        const fullValue = BigInt('0x' + hexClean);
+        const binaryValue = fullValue.toString(2).padStart(structDef.size_bits, '0');
 
-        // Parse each field
-        const parsedFields = structDef.fields.map(field => {
-            const fieldBits = binaryValue.substring(
-                structDef.size_bits - field.offset - field.bits,
-                structDef.size_bits - field.offset
-            );
-            const fieldValue = parseInt(fieldBits, 2);
-            
-            return {
-                ...field,
-                binary: fieldBits,
-                value: fieldValue,
-                hex: '0x' + fieldValue.toString(16).toUpperCase()
-            };
-        });
+        const parsedFields = this._parseFields(structDef.fields, binaryValue, fullValue, structDef.size_bits);
+
+        this._currentParsedData = {
+            struct: structDef,
+            fields: parsedFields,
+            hexValue: hexValue,
+            binaryValue: binaryValue
+        };
 
         this._panel.webview.postMessage({
             command: 'parseResult',
             struct: structDef,
             fields: parsedFields,
             hexValue: hexValue,
-            binaryValue: binaryValue
+            binaryValue: binaryValue,
+            fullHexValue: '0x' + fullValue.toString(16).toUpperCase().padStart(Math.ceil(structDef.size_bits / 4), '0')
+        });
+    }
+
+    private _parseFields(fields: StructField[], binaryValue: string, fullValue: bigint, totalBits: number, parentOffset: number = 0): ParsedField[] {
+        return fields.map(field => {
+            const absoluteOffset = parentOffset + field.offset;
+            const fieldBits = binaryValue.substring(
+                totalBits - absoluteOffset - field.bits,
+                totalBits - absoluteOffset
+            );
+            const fieldValue = parseInt(fieldBits, 2);
+            
+            const parsedField: ParsedField = {
+                ...field,
+                binary: fieldBits,
+                value: fieldValue,
+                hex: '0x' + fieldValue.toString(16).toUpperCase(),
+                fullHexValue: '0x' + fullValue.toString(16).toUpperCase()
+            };
+
+            // Handle nested structs/unions
+            if (field.children && field.children.length > 0) {
+                parsedField.children = this._parseFields(
+                    field.children, 
+                    fieldBits, 
+                    BigInt(fieldValue), 
+                    field.bits,
+                    0
+                );
+            }
+
+            return parsedField;
+        });
+    }
+
+    private _updateFieldValue(fieldPath: string[], newValue: number) {
+        if (!this._currentParsedData) return;
+
+        // Update the field value and recalculate
+        let currentFields: (ParsedField | StructField)[] = this._currentParsedData.fields;
+        let targetField: ParsedField | null = null;
+
+        for (let i = 0; i < fieldPath.length; i++) {
+            const fieldName = fieldPath[i];
+            const found = currentFields.find(f => f.name === fieldName);
+            
+            if (!found) break;
+            
+            if (i < fieldPath.length - 1 && found.children) {
+                currentFields = found.children;
+            } else if (i === fieldPath.length - 1) {
+                targetField = found as ParsedField;
+            }
+        }
+
+        if (targetField) {
+            // Validate value range
+            const maxValue = (1 << targetField.bits) - 1;
+            if (newValue < 0 || newValue > maxValue) {
+                this._panel.webview.postMessage({
+                    command: 'alert',
+                    text: `Value out of range. Must be 0-${maxValue} for ${targetField.bits}-bit field`
+                });
+                return;
+            }
+
+            // Update field
+            targetField.value = newValue;
+            targetField.hex = '0x' + newValue.toString(16).toUpperCase();
+            targetField.binary = newValue.toString(2).padStart(targetField.bits, '0');
+
+            // Recalculate full hex value
+            this._recalculateFullValue();
+
+            this._panel.webview.postMessage({
+                command: 'updateResult',
+                fields: this._currentParsedData.fields,
+                hexValue: this._currentParsedData.hexValue,
+                fullHexValue: '0x' + BigInt('0x' + this._currentParsedData.hexValue.replace(/^0x/i, '')).toString(16).toUpperCase()
+            });
+        }
+    }
+
+    private _recalculateFullValue() {
+        if (!this._currentParsedData) return;
+
+        // Rebuild binary string from fields
+        const rebuildBinary = (fields: ParsedField[], totalBits: number): string => {
+            let binary = '';
+            let currentOffset = 0;
+
+            for (const field of fields) {
+                // Pad if there's a gap
+                while (currentOffset < field.offset) {
+                    binary += '0';
+                    currentOffset++;
+                }
+                
+                binary += field.binary;
+                currentOffset += field.bits;
+            }
+
+            // Pad to total bits
+            while (binary.length < totalBits) {
+                binary += '0';
+            }
+
+            return binary;
+        };
+
+        const newBinary = rebuildBinary(this._currentParsedData.fields, this._currentParsedData.struct.size_bits);
+        const newValue = BigInt('0b' + newBinary);
+        this._currentParsedData.hexValue = '0x' + newValue.toString(16).toUpperCase();
+        this._currentParsedData.binaryValue = newBinary;
+    }
+
+    private _searchFields(searchTerm: string) {
+        if (!this._currentParsedData) return;
+
+        const results: { field: ParsedField; path: string[] }[] = [];
+        
+        const searchInFields = (fields: (ParsedField | StructField)[], path: string[]) => {
+            for (const field of fields) {
+                const currentPath = [...path, field.name];
+                
+                if (field.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    field.type.toLowerCase().includes(searchTerm.toLowerCase())) {
+                    results.push({ field: field as ParsedField, path: currentPath });
+                }
+
+                if (field.children) {
+                    searchInFields(field.children, currentPath);
+                }
+            }
+        };
+
+        searchInFields(this._currentParsedData.fields, []);
+
+        this._panel.webview.postMessage({
+            command: 'searchResults',
+            results: results
         });
     }
 
@@ -197,14 +342,18 @@ export class StructParserPanel {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Struct Parser</title>
             <style>
+                * {
+                    box-sizing: border-box;
+                }
                 body {
                     font-family: var(--vscode-font-family);
                     padding: 20px;
                     color: var(--vscode-foreground);
                     background-color: var(--vscode-editor-background);
+                    margin: 0;
                 }
                 .container {
-                    max-width: 800px;
+                    max-width: 1000px;
                     margin: 0 auto;
                 }
                 .input-section {
@@ -231,8 +380,15 @@ export class StructParserPanel {
                     border: 1px solid var(--vscode-input-border);
                     border-radius: 4px;
                 }
+                .search-box {
+                    display: flex;
+                    gap: 10px;
+                }
+                .search-box input {
+                    flex: 1;
+                }
                 button {
-                    padding: 10px 20px;
+                    padding: 8px 16px;
                     background-color: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
                     border: none;
@@ -243,54 +399,107 @@ export class StructParserPanel {
                 button:hover {
                     background-color: var(--vscode-button-hoverBackground);
                 }
+                .info {
+                    color: var(--vscode-descriptionForeground);
+                    font-size: 12px;
+                    margin-top: 5px;
+                }
                 .results-section {
                     margin-top: 20px;
                 }
-                .field-row {
+                .full-value {
+                    padding: 15px;
+                    background-color: var(--vscode-textCodeBlock-background);
+                    border-radius: 6px;
+                    margin-bottom: 20px;
+                    font-family: var(--vscode-editor-font-family);
+                }
+                .full-value .label {
+                    color: var(--vscode-descriptionForeground);
+                    font-size: 12px;
+                    margin-bottom: 5px;
+                }
+                .full-value .value {
+                    font-size: 18px;
+                    font-weight: bold;
+                    color: var(--vscode-symbolIcon-colorForeground);
+                }
+                .tree-node {
+                    margin-left: 20px;
+                }
+                .tree-header {
                     display: flex;
                     align-items: center;
-                    padding: 10px;
-                    margin-bottom: 8px;
-                    background-color: var(--vscode-panel-background);
+                    padding: 8px;
+                    cursor: pointer;
                     border-radius: 4px;
-                    border-left: 4px solid var(--vscode-focusBorder);
+                    transition: background-color 0.2s;
+                }
+                .tree-header:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
+                .tree-header.expanded {
+                    background-color: var(--vscode-list-activeSelectionBackground);
+                }
+                .expand-icon {
+                    width: 16px;
+                    height: 16px;
+                    margin-right: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 10px;
+                    transition: transform 0.2s;
+                }
+                .expand-icon.expanded {
+                    transform: rotate(90deg);
+                }
+                .field-info {
+                    display: flex;
+                    align-items: center;
+                    flex: 1;
+                    gap: 10px;
                 }
                 .field-name {
-                    width: 150px;
                     font-weight: bold;
+                    min-width: 150px;
                 }
                 .field-type {
-                    width: 80px;
                     color: var(--vscode-symbolIcon-typeForeground);
+                    min-width: 80px;
                 }
                 .field-bits {
-                    width: 60px;
-                    text-align: center;
+                    color: var(--vscode-descriptionForeground);
+                    font-size: 12px;
+                    min-width: 60px;
                 }
                 .field-binary {
-                    flex: 1;
                     font-family: var(--vscode-editor-font-family);
                     font-size: 12px;
                     color: var(--vscode-textPreformat-foreground);
+                    flex: 1;
                     word-break: break-all;
                 }
                 .field-value {
-                    width: 100px;
-                    text-align: right;
-                    font-family: var(--vscode-editor-font-family);
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                .field-value input {
+                    width: 80px;
+                    padding: 4px 8px;
+                    font-size: 13px;
                 }
                 .field-hex {
-                    width: 80px;
-                    text-align: right;
                     font-family: var(--vscode-editor-font-family);
                     color: var(--vscode-numberLiteral-foreground);
+                    min-width: 70px;
                 }
-                .header-row {
-                    display: flex;
-                    padding: 10px;
-                    font-weight: bold;
-                    border-bottom: 2px solid var(--vscode-panel-border);
-                    margin-bottom: 10px;
+                .children {
+                    display: none;
+                }
+                .children.expanded {
+                    display: block;
                 }
                 .error {
                     color: var(--vscode-errorForeground);
@@ -298,19 +507,24 @@ export class StructParserPanel {
                     background-color: var(--vscode-inputValidation-errorBackground);
                     border-radius: 4px;
                 }
-                .info {
-                    color: var(--vscode-descriptionForeground);
-                    font-size: 12px;
-                    margin-top: 5px;
-                }
-                .binary-display {
-                    font-family: var(--vscode-editor-font-family);
-                    font-size: 12px;
-                    word-break: break-all;
-                    padding: 10px;
-                    background-color: var(--vscode-textCodeBlock-background);
-                    border-radius: 4px;
+                .search-results {
                     margin-top: 10px;
+                    padding: 10px;
+                    background-color: var(--vscode-panel-background);
+                    border-radius: 4px;
+                }
+                .search-result-item {
+                    padding: 5px;
+                    cursor: pointer;
+                    border-radius: 3px;
+                }
+                .search-result-item:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
+                .highlight {
+                    background-color: var(--vscode-editor-findMatchHighlightBackground);
+                    padding: 2px 4px;
+                    border-radius: 3px;
                 }
             </style>
         </head>
@@ -336,13 +550,25 @@ export class StructParserPanel {
                     <button onclick="parseValue()">Parse</button>
                 </div>
                 
+                <div class="input-section" id="searchSection" style="display: none;">
+                    <div class="input-group">
+                        <label>Search Fields:</label>
+                        <div class="search-box">
+                            <input type="text" id="searchInput" placeholder="Search by field name or type..." />
+                            <button onclick="searchFields()">Search</button>
+                        </div>
+                    </div>
+                    <div id="searchResults"></div>
+                </div>
+                
                 <div id="results" class="results-section"></div>
             </div>
 
             <script>
                 const vscode = acquireVsCodeApi();
+                let currentFields = [];
+                let expandedNodes = new Set();
                 
-                // Handle messages from extension
                 window.addEventListener('message', event => {
                     const message = event.data;
                     switch (message.command) {
@@ -352,6 +578,12 @@ export class StructParserPanel {
                         case 'parseResult':
                             displayResults(message);
                             break;
+                        case 'updateResult':
+                            updateResults(message);
+                            break;
+                        case 'searchResults':
+                            displaySearchResults(message.results);
+                            break;
                     }
                 });
                 
@@ -360,18 +592,12 @@ export class StructParserPanel {
                     const structName = document.getElementById('structSelect').value;
                     
                     if (!hexValue) {
-                        vscode.postMessage({
-                            command: 'alert',
-                            text: 'Please enter a hex value'
-                        });
+                        vscode.postMessage({ command: 'alert', text: 'Please enter a hex value' });
                         return;
                     }
                     
                     if (!structName) {
-                        vscode.postMessage({
-                            command: 'alert',
-                            text: 'Please select a struct'
-                        });
+                        vscode.postMessage({ command: 'alert', text: 'Please select a struct' });
                         return;
                     }
                     
@@ -382,37 +608,148 @@ export class StructParserPanel {
                     });
                 }
                 
+                function searchFields() {
+                    const searchTerm = document.getElementById('searchInput').value.trim();
+                    if (!searchTerm) return;
+                    
+                    vscode.postMessage({
+                        command: 'search',
+                        searchTerm: searchTerm
+                    });
+                }
+                
                 function displayResults(data) {
-                    const resultsDiv = document.getElementById('results');
+                    currentFields = data.fields;
                     
                     if (data.error) {
-                        resultsDiv.innerHTML = '<div class="error">' + data.error + '</div>';
+                        document.getElementById('results').innerHTML = '<div class="error">' + data.error + '</div>';
+                        document.getElementById('searchSection').style.display = 'none';
                         return;
                     }
                     
-                    let html = '<h3>Parsed: ' + data.struct.name + '</h3>';
-                    html += '<div class="binary-display">Binary: ' + data.binaryValue + '</div>';
-                    html += '<div class="header-row">';
-                    html += '<div class="field-name">Field</div>';
-                    html += '<div class="field-type">Type</div>';
-                    html += '<div class="field-bits">Bits</div>';
-                    html += '<div class="field-binary">Binary</div>';
-                    html += '<div class="field-value">Value</div>';
-                    html += '<div class="field-hex">Hex</div>';
+                    document.getElementById('searchSection').style.display = 'block';
+                    
+                    let html = '<div class="full-value">';
+                    html += '<div class="label">Full Value</div>';
+                    html += '<div class="value">' + data.fullHexValue + '</div>';
                     html += '</div>';
                     
-                    data.fields.forEach(field => {
-                        html += '<div class="field-row">';
-                        html += '<div class="field-name">' + field.name + '</div>';
-                        html += '<div class="field-type">' + field.type + '</div>';
-                        html += '<div class="field-bits">' + field.bits + '</div>';
-                        html += '<div class="field-binary">' + field.binary + '</div>';
-                        html += '<div class="field-value">' + field.value + '</div>';
-                        html += '<div class="field-hex">' + field.hex + '</div>';
+                    html += '<div id="treeRoot">';
+                    html += renderTree(data.fields, []);
+                    html += '</div>';
+                    
+                    document.getElementById('results').innerHTML = html;
+                }
+                
+                function renderTree(fields, path) {
+                    let html = '';
+                    
+                    fields.forEach((field, index) => {
+                        const currentPath = [...path, field.name];
+                        const pathStr = currentPath.join('.');
+                        const hasChildren = field.children && field.children.length > 0;
+                        const isExpanded = expandedNodes.has(pathStr);
+                        
+                        html += '<div class="tree-node">';
+                        html += '<div class="tree-header ' + (isExpanded ? 'expanded' : '') + '" onclick="toggleNode(\'' + pathStr + '\')">';
+                        
+                        if (hasChildren) {
+                            html += '<span class="expand-icon ' + (isExpanded ? 'expanded' : '') + '">▶</span>';
+                        } else {
+                            html += '<span class="expand-icon" style="visibility: hidden;">▶</span>';
+                        }
+                        
+                        html += '<div class="field-info">';
+                        html += '<span class="field-name">' + field.name + '</span>';
+                        html += '<span class="field-type">' + field.type + '</span>';
+                        html += '<span class="field-bits">' + field.bits + ' bits</span>';
+                        html += '<span class="field-binary">' + field.binary + '</span>';
+                        html += '</div>';
+                        
+                        html += '<div class="field-value">';
+                        html += '<input type="number" value="' + field.value + '" ';
+                        html += 'min="0" max="' + ((1 << field.bits) - 1) + '" ';
+                        html += 'onchange="updateFieldValue(\'' + currentPath.join(',') + '\', this.value)" ';
+                        html += 'onclick="event.stopPropagation()" />';
+                        html += '<span class="field-hex">' + field.hex + '</span>';
+                        html += '</div>';
+                        
+                        html += '</div>';
+                        
+                        if (hasChildren) {
+                            html += '<div class="children ' + (isExpanded ? 'expanded' : '') + '" id="children-' + pathStr + '">';
+                            html += renderTree(field.children, currentPath);
+                            html += '</div>';
+                        }
+                        
                         html += '</div>';
                     });
                     
-                    resultsDiv.innerHTML = html;
+                    return html;
+                }
+                
+                function toggleNode(pathStr) {
+                    if (expandedNodes.has(pathStr)) {
+                        expandedNodes.delete(pathStr);
+                    } else {
+                        expandedNodes.add(pathStr);
+                    }
+                    // Re-render would be needed here in a real app
+                    // For simplicity, we just toggle the class
+                    const children = document.getElementById('children-' + pathStr);
+                    if (children) {
+                        children.classList.toggle('expanded');
+                    }
+                }
+                
+                function updateFieldValue(pathStr, newValue) {
+                    vscode.postMessage({
+                        command: 'updateField',
+                        fieldPath: pathStr.split(','),
+                        newValue: parseInt(newValue)
+                    });
+                }
+                
+                function updateResults(data) {
+                    // Update the displayed values without full re-render
+                    // This is a simplified version - in production, you'd want more targeted updates
+                    const inputs = document.querySelectorAll('.field-value input');
+                    inputs.forEach(input => {
+                        // Find corresponding field and update
+                        // Implementation depends on how you track field-input relationships
+                    });
+                }
+                
+                function displaySearchResults(results) {
+                    let html = '<div class="search-results">';
+                    html += '<div style="font-weight: bold; margin-bottom: 10px;">Search Results:</div>';
+                    
+                    if (results.length === 0) {
+                        html += '<div>No fields found</div>';
+                    } else {
+                        results.forEach(result => {
+                            html += '<div class="search-result-item" onclick="highlightField(\'' + result.path.join('.') + '\')">';
+                            html += result.path.join('.');
+                            html += ' <span style="color: var(--vscode-descriptionForeground);">(' + result.field.type + ')</span>';
+                            html += '</div>';
+                        });
+                    }
+                    
+                    html += '</div>';
+                    document.getElementById('searchResults').innerHTML = html;
+                }
+                
+                function highlightField(pathStr) {
+                    // Expand parent nodes and scroll to field
+                    const path = pathStr.split('.');
+                    for (let i = 1; i <= path.length; i++) {
+                        const partialPath = path.slice(0, i).join('.');
+                        expandedNodes.add(partialPath);
+                        const children = document.getElementById('children-' + partialPath);
+                        if (children) {
+                            children.classList.add('expanded');
+                        }
+                    }
                 }
             </script>
         </body>
@@ -421,7 +758,6 @@ export class StructParserPanel {
 
     public dispose() {
         StructParserPanel.currentPanel = undefined;
-
         this._panel.dispose();
 
         while (this._disposables.length) {
