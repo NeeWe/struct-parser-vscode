@@ -273,12 +273,15 @@ export class StructParserPanel {
     private _parseFields(fields: StructField[], binaryValue: string, fullValue: bigint, totalBits: number, parentOffset: number = 0): ParsedField[] {
         return fields.map(field => {
             const absoluteOffset = parentOffset + field.offset;
-            const startFromRight = absoluteOffset;
-            const endFromRight = absoluteOffset + field.bits;
-            const startPos = totalBits - endFromRight;
-            const endPos = totalBits - startFromRight;
+            
+            // offset 是从 MSB（最高位）开始的偏移量
+            // absoluteOffset=0 表示从最左边（最高位）开始
+            const startPos = absoluteOffset;
+            const endPos = absoluteOffset + field.bits;
             const fieldBits = binaryValue.substring(startPos, endPos);
             const fieldValue = parseInt(fieldBits, 2);
+            
+            console.log(`[StructParser] Field ${field.name}: offset=${field.offset}, absOffset=${absoluteOffset}, bits=${field.bits}, binary=${fieldBits}, value=${fieldValue}`);
             
             const parsedField: ParsedField = {
                 ...field,
@@ -1524,21 +1527,34 @@ export class StructParserPanel {
                         break;
                     case 'fieldUpdated':
                         // 立即更新DEC、HEX列和输入框的值
-                        const fieldId = message.fieldPath.join('_').replace(/[^a-zA-Z0-9_]/g, '_');
                         const simpleFieldId = message.fieldPath[message.fieldPath.length - 1].replace(/[^a-zA-Z0-9]/g, '_');
+                        
+                        console.log('[StructParser] Updating field:', simpleFieldId, message);
                         
                         const decEl = document.getElementById('val-dec-' + simpleFieldId);
                         const hexEl = document.getElementById('val-hex-' + simpleFieldId);
                         const inputEl = document.getElementById('input-' + simpleFieldId);
                         
-                        if (decEl) decEl.textContent = message.newValue;
-                        if (hexEl) hexEl.textContent = message.newHex;
-                        if (inputEl) inputEl.value = message.newValue;
+                        if (decEl) {
+                            decEl.textContent = message.newValue;
+                            console.log('[StructParser] Updated DEC:', decEl.textContent);
+                        }
+                        if (hexEl) {
+                            hexEl.textContent = message.newHex;
+                            console.log('[StructParser] Updated HEX:', hexEl.textContent);
+                        }
+                        if (inputEl) {
+                            inputEl.value = message.newValue;
+                            console.log('[StructParser] Updated Input:', inputEl.value);
+                        }
                         
-                        // 如果有完整的16进制值，也更新
+                        // 如果有完整的16进制值，也更新输入框
                         if (message.fullHexValue) {
-                            const fullHexEl = document.getElementById('fullValue');
-                            if (fullHexEl) fullHexEl.textContent = message.fullHexValue;
+                            const hexInput = document.getElementById('hexInput');
+                            if (hexInput) {
+                                hexInput.value = message.fullHexValue;
+                                console.log('[StructParser] Updated HexInput:', hexInput.value);
+                            }
                         }
                         break;
                     case 'searchResults':
