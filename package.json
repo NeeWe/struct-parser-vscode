@@ -21,7 +21,7 @@
     "register"
   ],
   "activationEvents": [
-    "onCommand:structParser.openViewer"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "repository": {
@@ -33,12 +33,30 @@
       {
         "command": "structParser.openViewer",
         "title": "Open Struct Parser Viewer",
+        "category": "Struct Parser",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "structParser.openViewerWithStruct",
+        "title": "Open with Struct",
         "category": "Struct Parser"
       },
       {
         "command": "structParser.parseFromHex",
         "title": "Parse Hex Value",
         "category": "Struct Parser"
+      },
+      {
+        "command": "structParser.importJson",
+        "title": "Import JSON File",
+        "category": "Struct Parser",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "structParser.refresh",
+        "title": "Refresh",
+        "category": "Struct Parser",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -47,6 +65,37 @@
           "command": "structParser.parseFromHex",
           "when": "editorHasSelection",
           "group": "9_cutcopypaste@5"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "structParser.importJson",
+          "when": "view == structExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "structParser.refresh",
+          "when": "view == structExplorer",
+          "group": "navigation"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "structParser",
+          "title": "Struct Parser",
+          "icon": "images/struct-parser-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "structParser": [
+        {
+          "id": "structExplorer",
+          "name": "Struct Explorer",
+          "icon": "$(symbol-structure)",
+          "contextualTitle": "Struct Explorer"
         }
       ]
     },

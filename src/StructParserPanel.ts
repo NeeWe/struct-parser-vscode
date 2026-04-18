@@ -186,6 +186,24 @@ export class StructParserPanel {
         });
     }
 
+    public selectStruct(structName: string) {
+        this._panel.webview.postMessage({
+            command: 'selectStruct',
+            structName: structName
+        });
+    }
+
+    public refreshStructList(structData: StructJson) {
+        this._structData = structData;
+        const structNames = [...structData.structs, ...structData.unions].map(s => s.name);
+        
+        this._panel.webview.postMessage({
+            command: 'jsonImported',
+            structNames: structNames,
+            filePath: vscode.workspace.getConfiguration('structParser').get('jsonPath', '')
+        });
+    }
+
     private _parseHexValue(hexValue: string, structName: string) {
         if (!this._structData) {
             this._panel.webview.postMessage({
@@ -257,7 +275,7 @@ export class StructParserPanel {
                 fullHexValue: '0x' + fullValue.toString(16).toUpperCase()
             };
 
-            // Handle nested structs/unions
+            // Handle nested structs/unions - look up from structData if needed
             if (field.children && field.children.length > 0) {
                 parsedField.children = this._parseFields(
                     field.children, 
@@ -266,6 +284,19 @@ export class StructParserPanel {
                     field.bits,
                     0
                 );
+            } else if ((field.type === 'struct' || field.type === 'union') && this._structData) {
+                // Look up the nested struct/union definition
+                const nestedDef = this._structData.structs.find(s => s.name === field.name) ||
+                                 this._structData.unions.find(s => s.name === field.name);
+                if (nestedDef && nestedDef.fields) {
+                    parsedField.children = this._parseFields(
+                        nestedDef.fields,
+                        fieldBits,
+                        BigInt(fieldValue),
+                        field.bits,
+                        0
+                    );
+                }
             }
 
             return parsedField;
@@ -411,12 +442,128 @@ export class StructParserPanel {
                 .container {
                     max-width: 1000px;
                     margin: 0 auto;
+                    padding: 10px;
+                }
+                h2 {
+                    text-align: center;
+                    color: var(--vscode-foreground);
+                    margin-bottom: 25px;
+                    font-size: 24px;
+                    font-weight: 600;
                 }
                 .input-section {
-                    margin-bottom: 20px;
+                    margin-bottom: 15px;
                     padding: 15px;
                     background-color: var(--vscode-panel-background);
+                    border-radius: 8px;
+                    border: 1px solid var(--vscode-panel-border);
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                .section-header {
+                    display: flex;
+                    align-items: center;
+                    margin-bottom: 12px;
+                    padding-bottom: 8px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                }
+                .section-icon {
+                    font-size: 18px;
+                    margin-right: 8px;
+                }
+                .section-title {
+                    font-weight: 600;
+                    font-size: 14px;
+                    color: var(--vscode-foreground);
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                .btn-primary {
+                    background: linear-gradient(135deg, var(--vscode-button-background) 0%, var(--vscode-button-hoverBackground) 100%);
+                    color: var(--vscode-button-foreground);
+                    border: none;
+                    padding: 10px 20px;
                     border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: 500;
+                    transition: all 0.2s;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                }
+                .btn-primary:hover:not(:disabled) {
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                }
+                .btn-primary:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                .btn-icon {
+                    font-size: 16px;
+                    font-weight: bold;
+                }
+                .btn-parse {
+                    width: 100%;
+                    margin-top: 10px;
+                    padding: 12px;
+                    font-size: 15px;
+                }
+                .input-with-prefix {
+                    display: flex;
+                    align-items: center;
+                    background-color: var(--vscode-input-background);
+                    border: 1px solid var(--vscode-input-border);
+                    border-radius: 6px;
+                    overflow: hidden;
+                }
+                .input-prefix {
+                    padding: 10px 12px;
+                    background-color: var(--vscode-panel-background);
+                    color: var(--vscode-descriptionForeground);
+                    font-family: var(--vscode-editor-font-family);
+                    font-weight: 500;
+                    border-right: 1px solid var(--vscode-input-border);
+                }
+                .hex-input {
+                    flex: 1;
+                    border: none;
+                    background: transparent;
+                    padding: 10px 12px;
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 16px;
+                    letter-spacing: 1px;
+                }
+                .struct-select {
+                    width: 100%;
+                    padding: 10px 12px;
+                    border-radius: 6px;
+                    border: 1px solid var(--vscode-input-border);
+                    background-color: var(--vscode-input-background);
+                    color: var(--vscode-input-foreground);
+                    font-size: 14px;
+                    cursor: pointer;
+                }
+                .info.success {
+                    color: var(--vscode-testing-iconPassed);
+                    background-color: var(--vscode-testing-iconPassed)20;
+                    padding: 6px 10px;
+                    border-radius: 4px;
+                    display: inline-block;
+                    margin-top: 8px;
+                }
+                .info.warning {
+                    color: var(--vscode-editorWarning-foreground);
+                    background-color: var(--vscode-editorWarning-foreground)20;
+                    padding: 6px 10px;
+                    border-radius: 4px;
+                    display: inline-block;
+                    margin-top: 8px;
+                }
+                .info {
+                    font-size: 12px;
+                    margin-top: 6px;
                 }
                 .input-group {
                     margin-bottom: 15px;
@@ -589,27 +736,49 @@ export class StructParserPanel {
                 <h2>Struct Parser Viewer</h2>
                 
                 <div class="input-section">
-                    <div class="input-group">
-                        <label>Struct Definition:</label>
-                        <button onclick="importJson()" style="width: 100%;">Import JSON File</button>
-                        <div class="info" id="importStatus">${structNames.length > 0 ? `Loaded ${structNames.length} structs` : 'No struct data loaded - click Import to load'}</div>
+                    <div class="section-header">
+                        <span class="section-icon">📁</span>
+                        <span class="section-title">Struct Definition</span>
                     </div>
-                    
                     <div class="input-group">
-                        <label for="hexInput">Hex Value:</label>
-                        <input type="text" id="hexInput" placeholder="0x1234ABCD or 1234ABCD" />
-                        <div class="info">Enter hex value (with or without 0x prefix)</div>
+                        <button onclick="importJson()" class="btn-primary" style="width: 100%;">
+                            <span class="btn-icon">+</span> Import JSON File
+                        </button>
+                        <div class="info ${structNames.length > 0 ? 'success' : 'warning'}" id="importStatus">
+                            ${structNames.length > 0 ? `✓ Loaded ${structNames.length} structs` : '⚠ No struct data loaded - click Import'}
+                        </div>
                     </div>
-                    
+                </div>
+                
+                <div class="input-section">
+                    <div class="section-header">
+                        <span class="section-icon">🔢</span>
+                        <span class="section-title">Hex Value</span>
+                    </div>
                     <div class="input-group">
-                        <label for="structSelect">Select Struct:</label>
-                        <select id="structSelect">
-                            <option value="">-- Select a struct --</option>
+                        <div class="input-with-prefix">
+                            <span class="input-prefix">0x</span>
+                            <input type="text" id="hexInput" placeholder="1234ABCD" class="hex-input" />
+                        </div>
+                        <div class="info">Enter hex value without 0x prefix</div>
+                    </div>
+                </div>
+                
+                <div class="input-section">
+                    <div class="section-header">
+                        <span class="section-icon">📐</span>
+                        <span class="section-title">Select Struct</span>
+                    </div>
+                    <div class="input-group">
+                        <select id="structSelect" class="struct-select">
+                            <option value="">-- Choose a struct --</option>
                             ${structNames.map(name => `<option value="${name}">${name}</option>`).join('')}
                         </select>
                     </div>
                     
-                    <button onclick="parseValue()" ${structNames.length === 0 ? 'disabled' : ''}>Parse</button>
+                    <button onclick="parseValue()" class="btn-primary btn-parse" ${structNames.length === 0 ? 'disabled' : ''}>
+                        <span class="btn-icon">▶</span> Parse
+                    </button>
                 </div>
                 
                 <div class="input-section" id="searchSection" style="display: none;">
@@ -636,6 +805,9 @@ export class StructParserPanel {
                     switch (message.command) {
                         case 'setHexValue':
                             document.getElementById('hexInput').value = message.hexValue;
+                            break;
+                        case 'selectStruct':
+                            document.getElementById('structSelect').value = message.structName;
                             break;
                         case 'parseResult':
                             displayResults(message);
