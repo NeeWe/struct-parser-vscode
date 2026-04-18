@@ -552,9 +552,33 @@ export class StructParserPanel {
 
                 <!-- Empty State -->
                 <div id="emptyState" class="sp-empty-state" style="display: ${hasStruct ? 'none' : 'flex'}">
-                    <div class="sp-empty-icon">📋</div>
-                    <div class="sp-empty-text">Select a struct from the sidebar</div>
-                    <div class="sp-empty-hint">Use the search box to find and select a struct</div>
+                    <div class="sp-empty-state-content">
+                        <div class="sp-empty-icon">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                                <polyline points="10 9 9 9 8 9"/>
+                            </svg>
+                        </div>
+                        <div class="sp-empty-text">Ready to Parse</div>
+                        <div class="sp-empty-hint">Select a struct from the sidebar to get started</div>
+                        <div class="sp-empty-steps">
+                            <div class="sp-step">
+                                <span class="sp-step-number">1</span>
+                                <span class="sp-step-text">Import JSON file from sidebar</span>
+                            </div>
+                            <div class="sp-step">
+                                <span class="sp-step-number">2</span>
+                                <span class="sp-step-text">Select a struct to view its definition</span>
+                            </div>
+                            <div class="sp-step">
+                                <span class="sp-step-number">3</span>
+                                <span class="sp-step-text">Enter hex value and parse</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Main Input Area -->
@@ -707,13 +731,21 @@ export class StructParserPanel {
                 border: none;
                 border-radius: var(--sp-radius);
                 cursor: pointer;
-                transition: all 0.15s ease;
+                transition: all 0.2s ease;
                 background-color: var(--vscode-button-background);
                 color: var(--vscode-button-foreground);
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
             }
             
             .sp-btn:hover:not(:disabled) {
                 background-color: var(--vscode-button-hoverBackground);
+                transform: translateY(-1px);
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+            }
+            
+            .sp-btn:active:not(:disabled) {
+                transform: translateY(0);
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
             }
             
             .sp-btn:disabled {
@@ -723,6 +755,12 @@ export class StructParserPanel {
             
             .sp-btn-primary {
                 background: linear-gradient(135deg, var(--vscode-button-background) 0%, var(--vscode-button-hoverBackground) 100%);
+                font-weight: 600;
+                padding: var(--sp-sm) var(--sp-lg);
+            }
+            
+            .sp-btn-primary:hover:not(:disabled) {
+                filter: brightness(1.1);
             }
             
             .sp-btn-block {
@@ -736,10 +774,13 @@ export class StructParserPanel {
                 padding: 0;
                 background: transparent;
                 color: var(--vscode-foreground);
+                box-shadow: none;
             }
             
             .sp-btn-icon:hover {
                 background-color: var(--vscode-toolbar-hoverBackground);
+                transform: none;
+                box-shadow: none;
             }
             
             .sp-btn-text {
@@ -747,6 +788,14 @@ export class StructParserPanel {
                 color: var(--vscode-textLink-foreground);
                 font-size: 12px;
                 padding: var(--sp-xs) var(--sp-sm);
+                box-shadow: none;
+            }
+            
+            .sp-btn-text:hover {
+                background: transparent;
+                transform: none;
+                box-shadow: none;
+                text-decoration: underline;
             }
             
             .sp-btn-sm {
@@ -788,18 +837,29 @@ export class StructParserPanel {
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                padding: 48px 24px;
+                padding: 60px 24px;
                 text-align: center;
+                min-height: 400px;
+            }
+            
+            .sp-empty-state-content {
+                max-width: 400px;
             }
             
             .sp-empty-icon {
-                font-size: 48px;
-                margin-bottom: 16px;
+                margin-bottom: 24px;
+                color: var(--vscode-descriptionForeground);
+                opacity: 0.6;
+            }
+            
+            .sp-empty-icon svg {
+                width: 64px;
+                height: 64px;
             }
             
             .sp-empty-text {
-                font-size: 16px;
-                font-weight: 500;
+                font-size: 20px;
+                font-weight: 600;
                 color: var(--vscode-foreground);
                 margin-bottom: 8px;
             }
@@ -807,6 +867,43 @@ export class StructParserPanel {
             .sp-empty-hint {
                 font-size: 13px;
                 color: var(--vscode-descriptionForeground);
+                margin-bottom: 32px;
+            }
+            
+            .sp-empty-steps {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                text-align: left;
+                padding: 20px;
+                background-color: var(--vscode-panel-background);
+                border: 1px solid var(--vscode-panel-border);
+                border-radius: var(--sp-radius);
+            }
+            
+            .sp-step {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            
+            .sp-step-number {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background-color: var(--vscode-button-background);
+                color: var(--vscode-button-foreground);
+                font-size: 12px;
+                font-weight: 600;
+                flex-shrink: 0;
+            }
+            
+            .sp-step-text {
+                font-size: 13px;
+                color: var(--vscode-foreground);
             }
             
             /* Input Row */
@@ -826,6 +923,11 @@ export class StructParserPanel {
                 border: 1px solid var(--vscode-input-border);
                 border-radius: var(--sp-radius);
                 overflow: hidden;
+                transition: border-color 0.2s ease;
+            }
+            
+            .sp-input-group:focus-within {
+                border-color: var(--vscode-focusBorder);
             }
             
             .sp-input-prefix {
@@ -835,6 +937,7 @@ export class StructParserPanel {
                 font-family: var(--vscode-editor-font-family);
                 font-weight: 500;
                 border-right: 1px solid var(--vscode-input-border);
+                user-select: none;
             }
             
             .sp-input {
@@ -845,10 +948,16 @@ export class StructParserPanel {
                 color: var(--vscode-input-foreground);
                 font-family: var(--vscode-editor-font-family);
                 font-size: 14px;
+                font-weight: 500;
             }
             
             .sp-input:focus {
                 outline: none;
+            }
+            
+            .sp-input::placeholder {
+                color: var(--vscode-input-placeholderForeground);
+                opacity: 0.6;
             }
             
             .sp-select {
@@ -1033,10 +1142,11 @@ export class StructParserPanel {
             .sp-field-row {
                 display: flex;
                 align-items: center;
-                padding: 6px var(--sp-md);
+                padding: 8px var(--sp-md);
                 border-bottom: 1px solid var(--vscode-panel-border);
                 font-size: 12px;
                 gap: 8px;
+                transition: background-color 0.15s ease;
             }
             
             .sp-field-row:hover {
@@ -1045,6 +1155,14 @@ export class StructParserPanel {
             
             .sp-field-row:last-child {
                 border-bottom: none;
+            }
+            
+            .sp-field-row:nth-child(even) {
+                background-color: rgba(255, 255, 255, 0.02);
+            }
+            
+            .sp-field-row:nth-child(even):hover {
+                background-color: var(--vscode-list-hoverBackground);
             }
             
             .sp-field-row > span,
