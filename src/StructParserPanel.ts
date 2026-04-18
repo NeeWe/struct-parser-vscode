@@ -561,116 +561,69 @@ export class StructParserPanel {
         </head>
         <body>
             <div class="sp-container">
-                <!-- Header -->
-                <header class="sp-header">
-                    <h1 class="sp-title">🔧 Struct Parser Viewer</h1>
-                    <div class="sp-toolbar">
-                        <button id="btnExport" class="sp-btn sp-btn-icon" title="Export">📤</button>
-                        <button id="btnSettings" class="sp-btn sp-btn-icon" title="Settings">⚙️</button>
+                <!-- Compact Header with Import -->
+                <header class="sp-header-compact">
+                    <div class="sp-header-main">
+                        <h1 class="sp-title">🔧 Struct Parser</h1>
+                        <button id="btnImport" class="sp-btn sp-btn-sm" title="Import JSON">📂 Import</button>
+                    </div>
+                    <div id="importStatus" class="sp-status-line ${structNames.length > 0 ? 'sp-status-success' : 'sp-status-warning'}">
+                        ${structNames.length > 0 ? '✓ ' + structNames.length + ' structs loaded' : '⚠ Click Import to load structs'}
                     </div>
                 </header>
 
-                <!-- Import Section -->
-                <section class="sp-section">
-                    <div class="sp-section-header">
-                        <span class="sp-section-icon">📁</span>
-                        <h2 class="sp-section-title">Struct Definition</h2>
-                        <span class="sp-version">v1.0</span>
-                    </div>
-                    <div class="sp-section-body">
-                        <button id="btnImport" class="sp-btn sp-btn-primary sp-btn-block">
-                            <span>📂</span> Import JSON File
-                        </button>
-                        <div id="importStatus" class="sp-badge ${structNames.length > 0 ? 'sp-badge-success' : 'sp-badge-warning'}">
-                            ${structNames.length > 0 ? '✓ Loaded ' + structNames.length + ' structs' : '⚠ No struct data loaded'}
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Input Section -->
-                <section class="sp-section">
-                    <div class="sp-section-header">
-                        <span class="sp-section-icon">🔢</span>
-                        <h2 class="sp-section-title">Hex Value</h2>
-                    </div>
-                    <div class="sp-section-body">
-                        <div class="sp-input-group">
+                <!-- Main Input Area -->
+                <section class="sp-section sp-section-compact">
+                    <div class="sp-input-row">
+                        <div class="sp-input-group sp-flex-2">
                             <span class="sp-input-prefix">0x</span>
                             <input type="text" id="hexInput" class="sp-input" placeholder="ABCD1234" maxlength="16">
-                            <button id="btnCopyHex" class="sp-btn sp-btn-icon" title="Copy">📋</button>
                         </div>
-                        <div class="sp-hint">Enter hex value without 0x prefix</div>
-                    </div>
-                </section>
-
-                <!-- Struct Selection -->
-                <section class="sp-section">
-                    <div class="sp-section-header">
-                        <span class="sp-section-icon">📐</span>
-                        <h2 class="sp-section-title">Select Struct</h2>
-                    </div>
-                    <div class="sp-section-body">
-                        <select id="structSelect" class="sp-select">
-                            <option value="">-- Choose a struct --</option>
+                        <select id="structSelect" class="sp-select sp-flex-1">
+                            <option value="">Select struct...</option>
                             ${structNames.map(name => `<option value="${name.replace(/"/g, '&quot;')}">${name}</option>`).join('')}
                         </select>
-                        <button id="btnParse" class="sp-btn sp-btn-primary sp-btn-block sp-mt-md" ${structNames.length === 0 ? 'disabled' : ''}>
-                            <span>▶</span> Parse
+                        <button id="btnParse" class="sp-btn sp-btn-primary" ${structNames.length === 0 ? 'disabled' : ''}>
+                            ▶ Parse
                         </button>
                     </div>
                 </section>
 
-                <!-- History Section -->
-                <section class="sp-section" id="historySection" style="display: ${this._history.length > 0 ? 'block' : 'none'}">
-                    <div class="sp-section-header">
-                        <span class="sp-section-icon">🕐</span>
-                        <h2 class="sp-section-title">History</h2>
-                        <button id="btnClearHistory" class="sp-btn sp-btn-text">Clear</button>
+                <!-- History Bar (Horizontal) -->
+                <div class="sp-history-bar" id="historySection" style="display: ${this._history.length > 0 ? 'flex' : 'none'}">
+                    <span class="sp-history-label">🕐</span>
+                    <div class="sp-history-items">
+                        ${this._history.slice(0, 3).map((item, index) => `
+                            <div class="sp-history-chip" data-index="${index}" title="${item.structName} = 0x${item.hexValue}">
+                                <span>${item.structName}</span>
+                                <span class="sp-history-chip-value">0x${item.hexValue.substring(0, 6)}${item.hexValue.length > 6 ? '...' : ''}</span>
+                            </div>
+                        `).join('')}
                     </div>
-                    <div class="sp-section-body">
-                        <div class="sp-history-list">
-                            ${this._history.slice(0, 5).map((item, index) => `
-                                <div class="sp-history-item" data-index="${index}">
-                                    <span class="sp-history-struct">${item.structName}</span>
-                                    <span class="sp-history-value">0x${item.hexValue}</span>
-                                    <span class="sp-history-time">${new Date(item.timestamp).toLocaleTimeString()}</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                </section>
+                    <button id="btnClearHistory" class="sp-btn sp-btn-xs sp-btn-text">Clear</button>
+                </div>
 
-                <!-- Search Section -->
-                <section class="sp-section" id="searchSection" style="display: none;">
-                    <div class="sp-section-header">
-                        <span class="sp-section-icon">🔍</span>
-                        <h2 class="sp-section-title">Search Fields</h2>
-                        <button id="btnCloseSearch" class="sp-btn sp-btn-icon">✕</button>
+                <!-- Search Bar (Collapsible) -->
+                <div class="sp-search-bar" id="searchSection" style="display: none;">
+                    <div class="sp-search-input-wrapper">
+                        <span class="sp-search-icon">🔍</span>
+                        <input type="text" id="searchInput" class="sp-search-input" placeholder="Search fields...">
+                        <button id="btnCloseSearch" class="sp-btn sp-btn-xs">✕</button>
                     </div>
-                    <div class="sp-section-body">
-                        <div class="sp-search">
-                            <span class="sp-search-icon">🔍</span>
-                            <input type="text" id="searchInput" class="sp-search-input" placeholder="Search by field name or type...">
-                        </div>
-                        <div id="searchResults" class="sp-search-results"></div>
-                    </div>
-                </section>
+                    <div id="searchResults" class="sp-search-results"></div>
+                </div>
 
                 <!-- Results Section -->
-                <section class="sp-section" id="resultsSection" style="display: none;">
-                    <div class="sp-section-header">
-                        <span class="sp-section-icon">📊</span>
-                        <h2 class="sp-section-title">Results</h2>
-                        <div class="sp-toolbar">
-                            <button id="btnSearch" class="sp-btn sp-btn-icon" title="Search">🔍</button>
-                            <button id="btnCopyResults" class="sp-btn sp-btn-icon" title="Copy All">📋</button>
-                            <button id="btnExportResults" class="sp-btn sp-btn-icon" title="Export">📤</button>
+                <section class="sp-section sp-section-results" id="resultsSection" style="display: none;">
+                    <div class="sp-results-header">
+                        <div class="sp-full-value" id="fullValue"></div>
+                        <div class="sp-results-actions">
+                            <button id="btnSearch" class="sp-btn sp-btn-xs" title="Search">🔍</button>
+                            <button id="btnCopyResults" class="sp-btn sp-btn-xs" title="Copy">📋</button>
+                            <button id="btnExportResults" class="sp-btn sp-btn-xs" title="Export">📤</button>
                         </div>
                     </div>
-                    <div class="sp-section-body">
-                        <div id="fullValue" class="sp-full-value"></div>
-                        <div id="treeRoot" class="sp-tree"></div>
-                    </div>
+                    <div id="treeRoot" class="sp-tree"></div>
                 </section>
             </div>
 
@@ -718,70 +671,52 @@ export class StructParserPanel {
             
             /* Container */
             .sp-container {
-                max-width: 800px;
+                max-width: 900px;
                 margin: 0 auto;
-                padding: var(--sp-lg);
+                padding: var(--sp-md);
             }
             
-            /* Header */
-            .sp-header {
+            /* Compact Header */
+            .sp-header-compact {
+                margin-bottom: var(--sp-md);
+            }
+            
+            .sp-header-main {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                margin-bottom: var(--sp-xl);
-                padding-bottom: var(--sp-md);
-                border-bottom: 1px solid var(--vscode-panel-border);
+                margin-bottom: var(--sp-xs);
             }
             
             .sp-title {
-                font-size: 18px;
+                font-size: 16px;
                 font-weight: 600;
                 color: var(--vscode-foreground);
             }
             
-            .sp-toolbar {
-                display: flex;
-                gap: var(--sp-xs);
+            .sp-status-line {
+                font-size: 12px;
+                padding: var(--sp-xs) 0;
             }
+            
+            .sp-status-success { color: var(--sp-success); }
+            .sp-status-warning { color: var(--sp-warning); }
             
             /* Section */
             .sp-section {
-                margin-bottom: var(--sp-lg);
+                margin-bottom: var(--sp-md);
                 background-color: var(--vscode-panel-background);
                 border: 1px solid var(--vscode-panel-border);
                 border-radius: var(--sp-radius);
                 overflow: hidden;
             }
             
-            .sp-section-header {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-sm);
-                padding: var(--sp-md) var(--sp-lg);
-                background-color: var(--vscode-panel-background);
-                border-bottom: 1px solid var(--vscode-panel-border);
+            .sp-section-compact {
+                padding: var(--sp-sm);
             }
             
-            .sp-section-icon {
-                font-size: 16px;
-            }
-            
-            .sp-section-title {
-                flex: 1;
-                font-size: 13px;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                color: var(--vscode-foreground);
-            }
-            
-            .sp-version {
-                font-size: 11px;
-                color: var(--vscode-descriptionForeground);
-            }
-            
-            .sp-section-body {
-                padding: var(--sp-lg);
+            .sp-section-results {
+                padding: 0;
             }
             
             /* Buttons */
@@ -837,6 +772,26 @@ export class StructParserPanel {
                 font-size: 12px;
                 padding: var(--sp-xs) var(--sp-sm);
             }
+            
+            .sp-btn-sm {
+                padding: var(--sp-xs) var(--sp-sm);
+                font-size: 12px;
+            }
+            
+            .sp-btn-xs {
+                padding: 2px var(--sp-xs);
+                font-size: 11px;
+            }
+            
+            /* Input Row */
+            .sp-input-row {
+                display: flex;
+                gap: var(--sp-sm);
+                align-items: center;
+            }
+            
+            .sp-flex-1 { flex: 1; }
+            .sp-flex-2 { flex: 2; }
             
             /* Input */
             .sp-input-group {
@@ -908,62 +863,74 @@ export class StructParserPanel {
                 background-color: rgba(204, 167, 0, 0.15);
             }
             
-            /* History */
-            .sp-history-list {
-                display: flex;
-                flex-direction: column;
-                gap: var(--sp-xs);
-            }
-            
-            .sp-history-item {
+            /* History Bar */
+            .sp-history-bar {
                 display: flex;
                 align-items: center;
                 gap: var(--sp-sm);
-                padding: var(--sp-sm) var(--sp-md);
-                background-color: var(--vscode-list-hoverBackground);
+                margin-bottom: var(--sp-md);
+                padding: var(--sp-xs) var(--sp-sm);
+                background-color: var(--vscode-panel-background);
+                border: 1px solid var(--vscode-panel-border);
                 border-radius: var(--sp-radius);
+            }
+            
+            .sp-history-label {
+                font-size: 12px;
+            }
+            
+            .sp-history-items {
+                display: flex;
+                gap: var(--sp-xs);
+                flex: 1;
+                overflow-x: auto;
+            }
+            
+            .sp-history-chip {
+                display: flex;
+                align-items: center;
+                gap: var(--sp-xs);
+                padding: 2px var(--sp-sm);
+                background-color: var(--vscode-list-hoverBackground);
+                border-radius: 12px;
+                font-size: 11px;
                 cursor: pointer;
+                white-space: nowrap;
                 transition: background-color 0.15s ease;
             }
             
-            .sp-history-item:hover {
+            .sp-history-chip:hover {
                 background-color: var(--vscode-list-activeSelectionBackground);
             }
             
-            .sp-history-struct {
-                font-weight: 500;
-                color: var(--vscode-foreground);
-            }
-            
-            .sp-history-value {
-                font-family: var(--vscode-editor-font-family);
+            .sp-history-chip-value {
                 color: var(--vscode-numberLiteral-foreground);
+                font-family: var(--vscode-editor-font-family);
             }
             
-            .sp-history-time {
-                margin-left: auto;
-                font-size: 11px;
-                color: var(--vscode-descriptionForeground);
-            }
-            
-            /* Search */
-            .sp-search {
-                position: relative;
+            /* Search Bar */
+            .sp-search-bar {
                 margin-bottom: var(--sp-md);
+                padding: var(--sp-sm);
+                background-color: var(--vscode-panel-background);
+                border: 1px solid var(--vscode-panel-border);
+                border-radius: var(--sp-radius);
+            }
+            
+            .sp-search-input-wrapper {
+                display: flex;
+                align-items: center;
+                gap: var(--sp-sm);
             }
             
             .sp-search-icon {
-                position: absolute;
-                left: var(--sp-md);
-                top: 50%;
-                transform: translateY(-50%);
                 color: var(--vscode-descriptionForeground);
+                font-size: 12px;
             }
             
             .sp-search-input {
-                width: 100%;
-                padding: var(--sp-sm) var(--sp-md);
-                padding-left: 36px;
+                flex: 1;
+                padding: var(--sp-xs) var(--sp-sm);
                 border: 1px solid var(--vscode-input-border);
                 border-radius: var(--sp-radius);
                 background-color: var(--vscode-input-background);
@@ -972,27 +939,41 @@ export class StructParserPanel {
             }
             
             .sp-search-results {
-                max-height: 200px;
+                max-height: 150px;
                 overflow-y: auto;
+                margin-top: var(--sp-sm);
+            }
+            
+            /* Results Section */
+            .sp-results-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: var(--sp-md);
+                background-color: var(--vscode-panel-background);
+                border-bottom: 1px solid var(--vscode-panel-border);
+            }
+            
+            .sp-results-actions {
+                display: flex;
+                gap: var(--sp-xs);
             }
             
             /* Full Value */
             .sp-full-value {
-                margin-bottom: var(--sp-lg);
-                padding: var(--sp-md);
-                background-color: var(--vscode-textBlockQuote-background);
-                border-radius: var(--sp-radius);
                 font-family: var(--vscode-editor-font-family);
+                font-size: 14px;
+                color: var(--vscode-foreground);
             }
             
             .sp-full-value-label {
-                font-size: 11px;
+                font-size: 10px;
                 color: var(--vscode-descriptionForeground);
-                margin-bottom: var(--sp-xs);
+                margin-bottom: 2px;
             }
             
             .sp-full-value-content {
-                font-size: 18px;
+                font-size: 16px;
                 font-weight: 500;
                 color: var(--vscode-foreground);
             }
@@ -1141,10 +1122,11 @@ export class StructParserPanel {
                 // Parse button
                 document.getElementById('btnParse')?.addEventListener('click', parseValue);
 
-                // Copy hex button
-                document.getElementById('btnCopyHex')?.addEventListener('click', () => {
-                    const hexValue = document.getElementById('hexInput').value;
-                    vscode.postMessage({ command: 'copy', text: '0x' + hexValue });
+                // Hex input - Enter key to parse
+                document.getElementById('hexInput')?.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        parseValue();
+                    }
                 });
 
                 // Search button
