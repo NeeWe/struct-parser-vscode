@@ -541,16 +541,21 @@ export class StructParserPanel {
     private _renderFieldList(fields: StructField[], level: number = 0): string {
         let html = '';
         fields.forEach(field => {
-            const indent = level * 20;
+            const indent = level * 16;
             const hasChildren = field.children && field.children.length > 0;
+            const fieldId = field.name.replace(/[^a-zA-Z0-9]/g, '_');
             
             html += `
-                <div class="sp-field-row" style="padding-left: ${indent}px">
+                <div class="sp-field-row" style="padding-left: ${indent}px" data-field="${field.name}">
                     <span class="sp-field-name">${hasChildren ? '▼' : '•'} ${field.name}</span>
                     <span class="sp-field-type">${field.type}</span>
                     <span class="sp-field-bits">${field.bits}</span>
                     <span class="sp-field-offset">${field.offset}</span>
-                    <span class="sp-field-value" data-field="${field.name}">-</span>
+                    <span class="sp-field-dec" id="val-dec-${fieldId}">-</span>
+                    <span class="sp-field-hex" id="val-hex-${fieldId}">-</span>
+                    <input type="number" class="sp-field-input" id="input-${fieldId}" 
+                        min="0" max="${(1 << field.bits) - 1}" placeholder="-" 
+                        data-field="${field.name}" data-bits="${field.bits}">
                 </div>
             `;
             
@@ -644,8 +649,10 @@ export class StructParserPanel {
                             <span class="sp-field-h-name">Field</span>
                             <span class="sp-field-h-type">Type</span>
                             <span class="sp-field-h-bits">Bits</span>
-                            <span class="sp-field-h-offset">Offset</span>
-                            <span class="sp-field-h-value">Value</span>
+                            <span class="sp-field-h-offset">Offs</span>
+                            <span class="sp-field-h-dec">Dec</span>
+                            <span class="sp-field-h-hex">Hex</span>
+                            <span class="sp-field-h-input">Edit</span>
                         </div>
                         <div id="fieldList" class="sp-field-list">
                             ${hasStruct ? this._renderFieldList(this._currentStruct!.fields) : ''}
@@ -1085,18 +1092,21 @@ export class StructParserPanel {
                 text-transform: uppercase;
             }
             
-            .sp-field-h-name { flex: 2; }
-            .sp-field-h-type { flex: 1; }
-            .sp-field-h-bits { width: 50px; text-align: right; }
-            .sp-field-h-offset { width: 50px; text-align: right; }
-            .sp-field-h-value { width: 80px; text-align: right; }
+            .sp-field-h-name { flex: 3; min-width: 100px; }
+            .sp-field-h-type { flex: 1.5; min-width: 60px; }
+            .sp-field-h-bits { width: 40px; text-align: center; }
+            .sp-field-h-offset { width: 40px; text-align: center; }
+            .sp-field-h-dec { width: 60px; text-align: right; }
+            .sp-field-h-hex { width: 70px; text-align: right; }
+            .sp-field-h-input { width: 70px; text-align: center; }
             
             .sp-field-row {
                 display: flex;
                 align-items: center;
-                padding: 8px var(--sp-md);
+                padding: 6px var(--sp-md);
                 border-bottom: 1px solid var(--vscode-panel-border);
-                font-size: 13px;
+                font-size: 12px;
+                gap: 8px;
             }
             
             .sp-field-row:hover {
@@ -1108,35 +1118,71 @@ export class StructParserPanel {
             }
             
             .sp-field-name { 
-                flex: 2; 
+                flex: 3; 
+                min-width: 100px;
                 font-weight: 500;
                 color: var(--vscode-foreground);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
             
             .sp-field-type { 
-                flex: 1; 
+                flex: 1.5; 
+                min-width: 60px;
                 color: var(--vscode-symbolIcon-colorForeground);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
             
             .sp-field-bits { 
-                width: 50px; 
-                text-align: right;
+                width: 40px; 
+                text-align: center;
                 font-family: var(--vscode-editor-font-family);
+                font-size: 11px;
                 color: var(--vscode-descriptionForeground);
             }
             
             .sp-field-offset { 
-                width: 50px; 
-                text-align: right;
+                width: 40px; 
+                text-align: center;
                 font-family: var(--vscode-editor-font-family);
+                font-size: 11px;
                 color: var(--vscode-descriptionForeground);
             }
             
-            .sp-field-value { 
-                width: 80px; 
+            .sp-field-dec { 
+                width: 60px; 
                 text-align: right;
                 font-family: var(--vscode-editor-font-family);
+                font-size: 12px;
                 color: var(--vscode-numberLiteral-foreground);
+            }
+            
+            .sp-field-hex { 
+                width: 70px; 
+                text-align: right;
+                font-family: var(--vscode-editor-font-family);
+                font-size: 12px;
+                color: var(--vscode-textPreformat-foreground);
+            }
+            
+            .sp-field-input {
+                width: 70px;
+                padding: 2px 6px;
+                border: 1px solid var(--vscode-input-border);
+                border-radius: 4px;
+                background: var(--vscode-input-background);
+                color: var(--vscode-input-foreground);
+                font-family: var(--vscode-editor-font-family);
+                font-size: 12px;
+                text-align: right;
+            }
+            
+            .sp-field-input:focus {
+                outline: none;
+                border-color: var(--vscode-focusBorder);
             }
             
             /* Tree */
@@ -1320,6 +1366,26 @@ export class StructParserPanel {
                         vscode.postMessage({ command: 'loadHistory', index: parseInt(index) });
                     });
                 });
+                
+                // Field input editing
+                document.querySelectorAll('.sp-field-input').forEach(input => {
+                    input.addEventListener('change', (e) => {
+                        const fieldName = e.target.getAttribute('data-field');
+                        const newValue = parseInt(e.target.value);
+                        const bits = parseInt(e.target.getAttribute('data-bits'));
+                        
+                        if (isNaN(newValue) || newValue < 0 || newValue > ((1 << bits) - 1)) {
+                            vscode.postMessage({ command: 'alert', text: 'Value out of range for ' + fieldName });
+                            return;
+                        }
+                        
+                        vscode.postMessage({
+                            command: 'updateField',
+                            fieldPath: [fieldName],
+                            newValue: newValue
+                        });
+                    });
+                });
             }
 
             function parseValue() {
@@ -1397,12 +1463,18 @@ export class StructParserPanel {
                 currentFields = data.fields;
                 
                 if (data.error) {
-                    document.getElementById('resultsSection').style.display = 'block';
-                    document.getElementById('treeRoot').innerHTML = '<div class="sp-badge sp-badge-warning">' + data.error + '</div>';
+                    vscode.postMessage({ command: 'alert', text: data.error });
                     return;
                 }
                 
-                document.getElementById('resultsSection').style.display = 'block';
+                // Update field values in Struct Definition section
+                updateFieldValues(data.fields);
+                
+                // Show parsed results section
+                const resultsSection = document.getElementById('resultsSection');
+                if (resultsSection) {
+                    resultsSection.style.display = 'block';
+                }
                 
                 // Display full value
                 const fullValueEl = document.getElementById('fullValue');
@@ -1420,6 +1492,24 @@ export class StructParserPanel {
                     parsedTree.innerHTML = renderTree(data.fields, []);
                     attachTreeEventListeners();
                 }
+            }
+            
+            function updateFieldValues(fields) {
+                fields.forEach(field => {
+                    const fieldId = field.name.replace(/[^a-zA-Z0-9]/g, '_');
+                    const decEl = document.getElementById('val-dec-' + fieldId);
+                    const hexEl = document.getElementById('val-hex-' + fieldId);
+                    const inputEl = document.getElementById('input-' + fieldId);
+                    
+                    if (decEl) decEl.textContent = field.value;
+                    if (hexEl) hexEl.textContent = field.hex;
+                    if (inputEl) inputEl.value = field.value;
+                    
+                    // Recursively update children
+                    if (field.children && field.children.length > 0) {
+                        updateFieldValues(field.children);
+                    }
+                });
             }
 
             function renderTree(fields, path) {
