@@ -1405,17 +1405,21 @@ export class StructParserPanel {
                 document.getElementById('resultsSection').style.display = 'block';
                 
                 // Display full value
-                const fullValueHtml = '<div class="sp-full-value-label">Full Value' + 
-                    (data.adjustedValue ? ' <span style="color: var(--sp-warning)">(adjusted)</span>' : '') + 
-                    '</div>' +
-                    '<div class="sp-full-value-content">' + data.fullHexValue + ' (' + data.struct.size_bits + '-bit)</div>';
-                document.getElementById('fullValue').innerHTML = fullValueHtml;
+                const fullValueEl = document.getElementById('fullValue');
+                if (fullValueEl) {
+                    const fullValueHtml = '<div class="sp-full-value-label">Full Value' + 
+                        (data.adjustedValue ? ' <span style="color: var(--sp-warning)">(adjusted)</span>' : '') + 
+                        '</div>' +
+                        '<div class="sp-full-value-content">' + data.fullHexValue + ' (' + data.struct.size_bits + '-bit)</div>';
+                    fullValueEl.innerHTML = fullValueHtml;
+                }
                 
-                // Render tree
-                document.getElementById('treeRoot').innerHTML = renderTree(data.fields, []);
-                
-                // Attach event listeners
-                attachTreeEventListeners();
+                // Render tree in parsedTree element
+                const parsedTree = document.getElementById('parsedTree');
+                if (parsedTree) {
+                    parsedTree.innerHTML = renderTree(data.fields, []);
+                    attachTreeEventListeners();
+                }
             }
 
             function renderTree(fields, path) {

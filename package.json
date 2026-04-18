@@ -95,6 +95,11 @@
           "type": "string",
           "default": "",
           "description": "Path to the struct parser JSON output file"
+        },
+        "structParser.history": {
+          "type": "array",
+          "default": [],
+          "description": "History of parsed struct values"
         }
       }
     }
