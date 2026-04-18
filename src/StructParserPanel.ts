@@ -660,16 +660,10 @@ export class StructParserPanel {
                     </div>
                 </section>
 
-                <!-- Parsed Results Section -->
-                <section class="sp-section sp-section-results" id="resultsSection" style="display: none;">
-                    <div class="sp-results-header">
-                        <div class="sp-full-value" id="fullValue"></div>
-                        <div class="sp-results-actions">
-                            <button id="btnExportResults" class="sp-btn sp-btn-xs" title="Export">📤</button>
-                        </div>
-                    </div>
-                    <div id="parsedTree" class="sp-tree"></div>
-                </section>
+                <!-- Export Button (Floating) -->
+                <div id="exportContainer" style="display: none; padding: var(--sp-sm) 0; text-align: right;">
+                    <button id="btnExportResults" class="sp-btn sp-btn-sm" title="Export Results">📤 Export</button>
+                </div>
             </div>
 
             <script>
@@ -1092,13 +1086,14 @@ export class StructParserPanel {
                 text-transform: uppercase;
             }
             
-            .sp-field-h-name { flex: 3; min-width: 100px; }
-            .sp-field-h-type { flex: 1.5; min-width: 60px; }
-            .sp-field-h-bits { width: 40px; text-align: center; }
-            .sp-field-h-offset { width: 40px; text-align: center; }
-            .sp-field-h-dec { width: 60px; text-align: right; }
-            .sp-field-h-hex { width: 70px; text-align: right; }
-            .sp-field-h-input { width: 70px; text-align: center; }
+            .sp-field-header > span { flex: 1; text-align: center; }
+            .sp-field-h-name { flex: 2; text-align: left; }
+            .sp-field-h-type { flex: 1.5; }
+            .sp-field-h-bits { flex: 0.8; }
+            .sp-field-h-offset { flex: 0.8; }
+            .sp-field-h-dec { flex: 1; }
+            .sp-field-h-hex { flex: 1; }
+            .sp-field-h-input { flex: 1; }
             
             .sp-field-row {
                 display: flex;
@@ -1117,9 +1112,12 @@ export class StructParserPanel {
                 border-bottom: none;
             }
             
+            .sp-field-row > span,
+            .sp-field-row > input { flex: 1; text-align: center; }
+            
             .sp-field-name { 
-                flex: 3; 
-                min-width: 100px;
+                flex: 2;
+                text-align: left;
                 font-weight: 500;
                 color: var(--vscode-foreground);
                 overflow: hidden;
@@ -1128,8 +1126,7 @@ export class StructParserPanel {
             }
             
             .sp-field-type { 
-                flex: 1.5; 
-                min-width: 60px;
+                flex: 1.5;
                 color: var(--vscode-symbolIcon-colorForeground);
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -1137,23 +1134,21 @@ export class StructParserPanel {
             }
             
             .sp-field-bits { 
-                width: 40px; 
-                text-align: center;
+                flex: 0.8;
                 font-family: var(--vscode-editor-font-family);
                 font-size: 11px;
                 color: var(--vscode-descriptionForeground);
             }
             
             .sp-field-offset { 
-                width: 40px; 
-                text-align: center;
+                flex: 0.8;
                 font-family: var(--vscode-editor-font-family);
                 font-size: 11px;
                 color: var(--vscode-descriptionForeground);
             }
             
             .sp-field-dec { 
-                width: 60px; 
+                flex: 1;
                 text-align: right;
                 font-family: var(--vscode-editor-font-family);
                 font-size: 12px;
@@ -1161,7 +1156,7 @@ export class StructParserPanel {
             }
             
             .sp-field-hex { 
-                width: 70px; 
+                flex: 1;
                 text-align: right;
                 font-family: var(--vscode-editor-font-family);
                 font-size: 12px;
@@ -1169,7 +1164,7 @@ export class StructParserPanel {
             }
             
             .sp-field-input {
-                width: 70px;
+                flex: 1;
                 padding: 2px 6px;
                 border: 1px solid var(--vscode-input-border);
                 border-radius: 4px;
@@ -1470,27 +1465,10 @@ export class StructParserPanel {
                 // Update field values in Struct Definition section
                 updateFieldValues(data.fields);
                 
-                // Show parsed results section
-                const resultsSection = document.getElementById('resultsSection');
-                if (resultsSection) {
-                    resultsSection.style.display = 'block';
-                }
-                
-                // Display full value
-                const fullValueEl = document.getElementById('fullValue');
-                if (fullValueEl) {
-                    const fullValueHtml = '<div class="sp-full-value-label">Full Value' + 
-                        (data.adjustedValue ? ' <span style="color: var(--sp-warning)">(adjusted)</span>' : '') + 
-                        '</div>' +
-                        '<div class="sp-full-value-content">' + data.fullHexValue + ' (' + data.struct.size_bits + '-bit)</div>';
-                    fullValueEl.innerHTML = fullValueHtml;
-                }
-                
-                // Render tree in parsedTree element
-                const parsedTree = document.getElementById('parsedTree');
-                if (parsedTree) {
-                    parsedTree.innerHTML = renderTree(data.fields, []);
-                    attachTreeEventListeners();
+                // Show export button
+                const exportContainer = document.getElementById('exportContainer');
+                if (exportContainer) {
+                    exportContainer.style.display = 'block';
                 }
             }
             
