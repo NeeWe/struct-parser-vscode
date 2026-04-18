@@ -57,15 +57,15 @@ export class StructParserPanel {
         // If struct name provided and panel exists, reveal it
         if (structName && StructParserPanel.panels.has(structName)) {
             const panel = StructParserPanel.panels.get(structName)!;
-            panel._panel.reveal(vscode.ViewColumn.Beside);
+            panel._panel.reveal(vscode.ViewColumn.One);
             return panel;
         }
 
         // Create new panel
         const panel = vscode.window.createWebviewPanel(
             StructParserPanel.viewType,
-            structName ? `Struct: ${structName}` : 'Struct Parser',
-            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: false },
+            structName ? structName : 'Struct Parser',
+            vscode.ViewColumn.One,
             {
                 enableScripts: true,
                 localResourceRoots: [extensionUri],
