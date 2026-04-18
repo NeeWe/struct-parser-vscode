@@ -516,7 +516,8 @@ export class StructParserPanel {
 
     private _update() {
         const webview = this._panel.webview;
-        this._panel.title = 'Struct Parser';
+        // Update panel title to struct name if available
+        this._panel.title = this._currentStruct?.name || 'Struct Parser';
         this._panel.webview.html = this._getHtmlForWebview(webview);
     }
 
