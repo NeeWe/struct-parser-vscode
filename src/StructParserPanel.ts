@@ -80,8 +80,10 @@ export class StructParserPanel {
 
         this._panel.webview.onDidReceiveMessage(
             async message => {
+                console.log('[StructParser] Received message:', message.command, message);
                 switch (message.command) {
                     case 'parse':
+                        console.log('[StructParser] Handling parse command');
                         this._parseHexValue(message.hexValue, message.structName);
                         return;
                     case 'updateField':
@@ -205,7 +207,10 @@ export class StructParserPanel {
     }
 
     private _parseHexValue(hexValue: string, structName: string) {
+        console.log('[StructParser] Parse called:', { hexValue, structName });
+        
         if (!this._structData) {
+            console.log('[StructParser] Error: No struct data loaded');
             this._panel.webview.postMessage({
                 command: 'parseResult',
                 error: 'No struct data loaded. Please configure structParser.jsonPath in settings.'
@@ -213,16 +218,26 @@ export class StructParserPanel {
             return;
         }
 
+        console.log('[StructParser] Struct data loaded:', { 
+            structsCount: this._structData.structs?.length, 
+            unionsCount: this._structData.unions?.length 
+        });
+
         const structDef = this._structData.structs.find(s => s.name === structName) ||
                          this._structData.unions.find(s => s.name === structName);
 
         if (!structDef) {
+            console.log('[StructParser] Error: Struct not found:', structName);
+            console.log('[StructParser] Available structs:', this._structData.structs?.map(s => s.name));
+            console.log('[StructParser] Available unions:', this._structData.unions?.map(s => s.name));
             this._panel.webview.postMessage({
                 command: 'parseResult',
                 error: `Struct '${structName}' not found`
             });
             return;
         }
+        
+        console.log('[StructParser] Found struct:', structDef.name, 'size_bits:', structDef.size_bits);
 
         const hexClean = hexValue.replace(/^0x/i, '');
         let fullValue = BigInt('0x' + hexClean);
@@ -260,11 +275,17 @@ export class StructParserPanel {
 
     private _parseFields(fields: StructField[], binaryValue: string, fullValue: bigint, totalBits: number, parentOffset: number = 0): ParsedField[] {
         return fields.map(field => {
+            // binaryValue: MSB at index 0, LSB at index length-1
+            // field.offset: offset from LSB (right side)
+            // So we need to extract from the right side of binary string
             const absoluteOffset = parentOffset + field.offset;
-            const fieldBits = binaryValue.substring(
-                totalBits - absoluteOffset - field.bits,
-                totalBits - absoluteOffset
-            );
+            // Calculate position from the right (LSB) side
+            const startFromRight = absoluteOffset;
+            const endFromRight = absoluteOffset + field.bits;
+            // Convert to indices from left (MSB)
+            const startPos = totalBits - endFromRight;
+            const endPos = totalBits - startFromRight;
+            const fieldBits = binaryValue.substring(startPos, endPos);
             const fieldValue = parseInt(fieldBits, 2);
             
             const parsedField: ParsedField = {
@@ -547,7 +568,7 @@ export class StructParserPanel {
                 }
                 .info.success {
                     color: var(--vscode-testing-iconPassed);
-                    background-color: var(--vscode-testing-iconPassed)20;
+                    background-color: rgba(0, 128, 0, 0.15);
                     padding: 6px 10px;
                     border-radius: 4px;
                     display: inline-block;
@@ -555,7 +576,7 @@ export class StructParserPanel {
                 }
                 .info.warning {
                     color: var(--vscode-editorWarning-foreground);
-                    background-color: var(--vscode-editorWarning-foreground)20;
+                    background-color: rgba(255, 165, 0, 0.15);
                     padding: 6px 10px;
                     border-radius: 4px;
                     display: inline-block;
@@ -741,11 +762,11 @@ export class StructParserPanel {
                         <span class="section-title">Struct Definition</span>
                     </div>
                     <div class="input-group">
-                        <button onclick="importJson()" class="btn-primary" style="width: 100%;">
+                        <button id="importBtn" class="btn-primary" style="width: 100%;">
                             <span class="btn-icon">+</span> Import JSON File
                         </button>
                         <div class="info ${structNames.length > 0 ? 'success' : 'warning'}" id="importStatus">
-                            ${structNames.length > 0 ? `✓ Loaded ${structNames.length} structs` : '⚠ No struct data loaded - click Import'}
+                            ${structNames.length > 0 ? '✓ Loaded ' + structNames.length + ' structs' : '⚠ No struct data loaded - click Import'}
                         </div>
                     </div>
                 </div>
@@ -772,11 +793,14 @@ export class StructParserPanel {
                     <div class="input-group">
                         <select id="structSelect" class="struct-select">
                             <option value="">-- Choose a struct --</option>
-                            ${structNames.map(name => `<option value="${name}">${name}</option>`).join('')}
+                            ${structNames.map(function(name) { 
+                                const escaped = name.replace(/"/g, '&quot;'); 
+                                return '<option value="' + escaped + '">' + escaped + '</option>'; 
+                            }).join('')}
                         </select>
                     </div>
                     
-                    <button onclick="parseValue()" class="btn-primary btn-parse" ${structNames.length === 0 ? 'disabled' : ''}>
+                    <button id="parseBtn" class="btn-primary btn-parse" ${structNames.length === 0 ? 'disabled' : ''}>
                         <span class="btn-icon">▶</span> Parse
                     </button>
                 </div>
@@ -799,6 +823,19 @@ export class StructParserPanel {
                 const vscode = acquireVsCodeApi();
                 let currentFields = [];
                 let expandedNodes = new Set();
+                
+                // Add event listeners after DOM is loaded
+                document.addEventListener('DOMContentLoaded', function() {
+                    const parseBtn = document.getElementById('parseBtn');
+                    if (parseBtn) {
+                        parseBtn.addEventListener('click', parseValue);
+                    }
+                    
+                    const importBtn = document.getElementById('importBtn');
+                    if (importBtn) {
+                        importBtn.addEventListener('click', importJson);
+                    }
+                });
                 
                 window.addEventListener('message', event => {
                     const message = event.data;
@@ -841,7 +878,7 @@ export class StructParserPanel {
                         structNames.map(function(name) { return '<option value="' + name + '">' + name + '</option>'; }).join('');
                     
                     // Enable parse button
-                    const parseBtn = document.querySelector('button[onclick="parseValue()"]');
+                    const parseBtn = document.getElementById('parseBtn');
                     if (parseBtn) {
                         parseBtn.disabled = false;
                     }
@@ -851,16 +888,21 @@ export class StructParserPanel {
                     const hexValue = document.getElementById('hexInput').value.trim();
                     const structName = document.getElementById('structSelect').value;
                     
+                    console.log('[StructParser WebView] Parse clicked:', { hexValue, structName });
+                    
                     if (!hexValue) {
+                        console.log('[StructParser WebView] Error: No hex value');
                         vscode.postMessage({ command: 'alert', text: 'Please enter a hex value' });
                         return;
                     }
                     
                     if (!structName) {
+                        console.log('[StructParser WebView] Error: No struct selected');
                         vscode.postMessage({ command: 'alert', text: 'Please select a struct' });
                         return;
                     }
                     
+                    console.log('[StructParser WebView] Sending parse message');
                     vscode.postMessage({
                         command: 'parse',
                         hexValue: hexValue,
@@ -879,9 +921,11 @@ export class StructParserPanel {
                 }
                 
                 function displayResults(data) {
+                    console.log('[StructParser WebView] displayResults called:', data);
                     currentFields = data.fields;
                     
                     if (data.error) {
+                        console.log('[StructParser WebView] Error:', data.error);
                         document.getElementById('results').innerHTML = '<div class="error">' + data.error + '</div>';
                         document.getElementById('searchSection').style.display = 'none';
                         return;
@@ -902,6 +946,9 @@ export class StructParserPanel {
                     html += '</div>';
                     
                     document.getElementById('results').innerHTML = html;
+                    
+                    // Add event listeners to tree nodes
+                    attachTreeEventListeners();
                 }
                 
                 function renderTree(fields, path) {
@@ -914,7 +961,7 @@ export class StructParserPanel {
                         const isExpanded = expandedNodes.has(pathStr);
                         
                         html += '<div class="tree-node">';
-                        html += '<div class="tree-header ' + (isExpanded ? 'expanded' : '') + '" onclick="toggleNode(\'' + pathStr + '\')">';
+                        html += '<div class="tree-header ' + (isExpanded ? 'expanded' : '') + '" data-path="' + pathStr + '" data-has-children="' + hasChildren + '">';
                         
                         if (hasChildren) {
                             html += '<span class="expand-icon ' + (isExpanded ? 'expanded' : '') + '">▶</span>';
@@ -932,8 +979,8 @@ export class StructParserPanel {
                         html += '<div class="field-value">';
                         html += '<input type="number" value="' + field.value + '" ';
                         html += 'min="0" max="' + ((1 << field.bits) - 1) + '" ';
-                        html += 'onchange="updateFieldValue(\'' + currentPath.join(',') + '\', this.value)" ';
-                        html += 'onclick="event.stopPropagation()" />';
+                        html += 'data-path="' + currentPath.join(',') + '" ';
+                        html += 'class="field-input" />';
                         html += '<span class="field-hex">' + field.hex + '</span>';
                         html += '</div>';
                         
@@ -951,17 +998,48 @@ export class StructParserPanel {
                     return html;
                 }
                 
+                function attachTreeEventListeners() {
+                    // Tree header click for expand/collapse
+                    document.querySelectorAll('.tree-header').forEach(header => {
+                        header.addEventListener('click', function(e) {
+                            if (e.target.tagName === 'INPUT') return;
+                            const pathStr = this.getAttribute('data-path');
+                            const hasChildren = this.getAttribute('data-has-children') === 'true';
+                            if (hasChildren) {
+                                toggleNode(pathStr);
+                            }
+                        });
+                    });
+                    
+                    // Field input change
+                    document.querySelectorAll('.field-input').forEach(input => {
+                        input.addEventListener('change', function() {
+                            const pathStr = this.getAttribute('data-path');
+                            updateFieldValue(pathStr, this.value);
+                        });
+                        input.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                        });
+                    });
+                }
+                
                 function toggleNode(pathStr) {
                     if (expandedNodes.has(pathStr)) {
                         expandedNodes.delete(pathStr);
                     } else {
                         expandedNodes.add(pathStr);
                     }
-                    // Re-render would be needed here in a real app
-                    // For simplicity, we just toggle the class
                     const children = document.getElementById('children-' + pathStr);
                     if (children) {
                         children.classList.toggle('expanded');
+                    }
+                    const header = document.querySelector('.tree-header[data-path="' + pathStr + '"]');
+                    if (header) {
+                        header.classList.toggle('expanded');
+                    }
+                    const icon = document.querySelector('.tree-header[data-path="' + pathStr + '"] .expand-icon');
+                    if (icon) {
+                        icon.classList.toggle('expanded');
                     }
                 }
                 
@@ -975,11 +1053,9 @@ export class StructParserPanel {
                 
                 function updateResults(data) {
                     // Update the displayed values without full re-render
-                    // This is a simplified version - in production, you'd want more targeted updates
                     const inputs = document.querySelectorAll('.field-value input');
                     inputs.forEach(input => {
                         // Find corresponding field and update
-                        // Implementation depends on how you track field-input relationships
                     });
                 }
                 
@@ -991,7 +1067,7 @@ export class StructParserPanel {
                         html += '<div>No fields found</div>';
                     } else {
                         results.forEach(result => {
-                            html += '<div class="search-result-item" onclick="highlightField(\'' + result.path.join('.') + '\')">';
+                            html += '<div class="search-result-item" data-path="' + result.path.join('.') + '">';
                             html += result.path.join('.');
                             html += ' <span style="color: var(--vscode-descriptionForeground);">(' + result.field.type + ')</span>';
                             html += '</div>';
@@ -1000,10 +1076,17 @@ export class StructParserPanel {
                     
                     html += '</div>';
                     document.getElementById('searchResults').innerHTML = html;
+                    
+                    // Add event listeners
+                    document.querySelectorAll('.search-result-item').forEach(item => {
+                        item.addEventListener('click', function() {
+                            const pathStr = this.getAttribute('data-path');
+                            highlightField(pathStr);
+                        });
+                    });
                 }
                 
                 function highlightField(pathStr) {
-                    // Expand parent nodes and scroll to field
                     const path = pathStr.split('.');
                     for (let i = 1; i <= path.length; i++) {
                         const partialPath = path.slice(0, i).join('.');
