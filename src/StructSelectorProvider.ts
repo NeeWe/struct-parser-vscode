@@ -29,11 +29,11 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     private _structData: StructJson | null = null;
     private _extensionUri: vscode.Uri;
     private _onStructSelected: vscode.EventEmitter<StructDef> = new vscode.EventEmitter<StructDef>();
-    public readonly onStructSelected: vscode.Event<StructDef> = this._onStructSelected.event;
+    public get onStructSelected(): vscode.Event<StructDef> { return this._onStructSelected.event; }
 
     private _hideZero: boolean = false;
     private _onHideZeroChanged: vscode.EventEmitter<boolean> = new vscode.EventEmitter<boolean>();
-    public readonly onHideZeroChanged: vscode.Event<boolean> = this._onHideZeroChanged.event;
+    public get onHideZeroChanged(): vscode.Event<boolean> { return this._onHideZeroChanged.event; }
 
     constructor(extensionUri: vscode.Uri) {
         this._extensionUri = extensionUri;

@@ -43,17 +43,21 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Handle struct selection from sidebar
-    structSelectorProvider.onStructSelected((struct) => {
-        const panel = StructParserPanel.createOrShow(context.extensionUri, struct.type);
-        panel.showStructDefinition(struct);
-    });
+    context.subscriptions.push(
+        structSelectorProvider.onStructSelected((struct) => {
+            const panel = StructParserPanel.createOrShow(context.extensionUri, struct.type);
+            panel.showStructDefinition(struct);
+        })
+    );
 
     // Broadcast global hide-zero toggle to all open panels
-    structSelectorProvider.onHideZeroChanged((hideZero) => {
-        StructParserPanel.panels.forEach(panel => {
-            panel.setHideZero(hideZero);
-        });
-    });
+    context.subscriptions.push(
+        structSelectorProvider.onHideZeroChanged((hideZero) => {
+            StructParserPanel.panels.forEach(panel => {
+                panel.setHideZero(hideZero);
+            });
+        })
+    );
 
     context.subscriptions.push(
         openViewerCommand, 
