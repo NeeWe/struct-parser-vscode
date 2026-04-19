@@ -511,6 +511,9 @@ export class StructParserPanel {
 
     public showStructDefinition(struct: StructDef) {
         this._currentStruct = struct;
+        this._currentParsedData = null;
+        const hexValue = '0x' + '0'.repeat(Math.ceil(struct.size_bits / 4));
+        this._parseHexValue(hexValue, struct.name);
         this._update();
     }
 
@@ -573,7 +576,7 @@ export class StructParserPanel {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Struct Parser</title>
-            <style>
+6            <style>
                 :root {
                     --primary: #4EC9B0;
                     --primary-hover: #3DB8A0;
@@ -870,142 +873,6 @@ export class StructParserPanel {
                     color: var(--text-primary);
                 }
 
-                /* Bit Field Visualization Card */
-                .mc-bitmap-card {
-                    background: var(--panel-bg);
-                    border: 1px solid var(--border);
-                    border-radius: var(--radius-lg);
-                    overflow: hidden;
-                    box-shadow: var(--shadow-sm);
-                    display: none;
-                }
-
-                .mc-bitmap-header {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    padding: 14px 20px;
-                    background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
-                    border-bottom: 1px solid var(--border);
-                }
-
-                .mc-bitmap-title {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    font-size: 13px;
-                    font-weight: 600;
-                    color: var(--text-primary);
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                }
-
-                .mc-bitmap-icon {
-                    font-size: 16px;
-                    color: var(--primary);
-                }
-
-                .mc-bitmap-full-value {
-                    font-family: var(--vscode-editor-font-family);
-                    font-size: 14px;
-                    color: var(--accent);
-                    font-weight: 600;
-                }
-
-                .mc-bitmap-body {
-                    padding: 16px;
-                }
-
-                .mc-bitmap {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 4px;
-                    padding: 12px;
-                    background: rgba(0, 0, 0, 0.15);
-                    border-radius: var(--radius-md);
-                }
-
-                .mc-bit-block {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    gap: 6px;
-                    padding: 8px;
-                    border-radius: var(--radius-sm);
-                    cursor: pointer;
-                    transition: all var(--transition);
-                    min-width: 60px;
-                }
-
-                .mc-bit-block:hover {
-                    transform: translateY(-3px);
-                    background: rgba(255, 255, 255, 0.05);
-                }
-
-                .mc-bit-block-bar {
-                    width: 100%;
-                    height: 36px;
-                    border-radius: 4px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-family: var(--vscode-editor-font-family);
-                    font-size: 11px;
-                    font-weight: 700;
-                    color: rgba(0, 0, 0, 0.7);
-                    transition: all var(--transition);
-                    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
-                }
-
-                .mc-bit-block-bar:hover {
-                    filter: brightness(1.15);
-                    transform: scaleY(1.1);
-                }
-
-                .mc-bit-block.struct .mc-bit-block-bar { background: linear-gradient(135deg, #4EC9B0, #3DB8A0); }
-                .mc-bit-block.union .mc-bit-block-bar { background: linear-gradient(135deg, #C586C0, #B575B0); }
-                .mc-bit-block.uint .mc-bit-block-bar { background: linear-gradient(135deg, #9CDCFE, #7BC4F8); }
-                .mc-bit-block.bool .mc-bit-block-bar { background: linear-gradient(135deg, #569CD6, #4A8BC4); }
-
-                .mc-bit-block-name {
-                    font-size: 11px;
-                    font-weight: 600;
-                    color: var(--text-primary);
-                    max-width: 70px;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }
-
-                .mc-bit-block-value {
-                    font-size: 10px;
-                    color: var(--text-secondary);
-                    font-family: var(--vscode-editor-font-family);
-                }
-
-                .mc-bit-legend {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 12px;
-                    margin-top: 12px;
-                    padding-top: 12px;
-                    border-top: 1px solid var(--border);
-                }
-
-                .mc-bit-legend-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 6px;
-                    font-size: 11px;
-                    color: var(--text-secondary);
-                }
-
-                .mc-bit-legend-color {
-                    width: 14px;
-                    height: 14px;
-                    border-radius: 3px;
-                }
-
                 /* Fields Card */
                 .mc-fields-card {
                     background: var(--panel-bg);
@@ -1094,30 +961,44 @@ export class StructParserPanel {
                     color: var(--text-muted);
                 }
 
-                /* Fields List */
+                /* Tree View */
                 .mc-fields-list {
-                    max-height: 400px;
+                    max-height: 500px;
                     overflow-y: auto;
                 }
 
-                .mc-field-row {
+                .mc-tree-node {
+                    display: flex;
+                    flex-direction: column;
+                    border-bottom: 1px solid var(--border);
+                }
+
+                .mc-tree-node:last-child {
+                    border-bottom: none;
+                }
+
+                .mc-tree-node-header {
                     display: flex;
                     align-items: center;
                     gap: 12px;
                     padding: 12px 20px;
-                    border-bottom: 1px solid var(--border);
+                    cursor: pointer;
                     transition: all var(--transition);
                 }
 
-                .mc-field-row:last-child {
-                    border-bottom: none;
-                }
-
-                .mc-field-row:hover {
+                .mc-tree-node-header:hover {
                     background: var(--hover-bg);
                 }
 
-                .mc-field-expand {
+                .mc-tree-node-content {
+                    flex: 1;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    min-width: 0;
+                }
+
+                .mc-tree-expand {
                     width: 20px;
                     height: 20px;
                     display: flex;
@@ -1127,13 +1008,18 @@ export class StructParserPanel {
                     color: var(--text-muted);
                     cursor: pointer;
                     transition: transform var(--transition);
+                    flex-shrink: 0;
                 }
 
-                .mc-field-expand.expanded {
+                .mc-tree-expand.expanded {
                     transform: rotate(90deg);
                 }
 
-                .mc-field-icon {
+                .mc-tree-expand.no-children {
+                    visibility: hidden;
+                }
+
+                .mc-tree-icon {
                     width: 10px;
                     height: 10px;
                     border-radius: 50%;
@@ -1141,12 +1027,12 @@ export class StructParserPanel {
                     box-shadow: 0 0 6px currentColor;
                 }
 
-                .mc-field-icon.struct { background: var(--primary); color: var(--primary); }
-                .mc-field-icon.union { background: var(--secondary); color: var(--secondary); }
-                .mc-field-icon.uint { background: #9CDCFE; color: #9CDCFE; }
-                .mc-field-icon.bool { background: #569CD6; color: #569CD6; }
+                .mc-tree-icon.struct { background: var(--primary); color: var(--primary); }
+                .mc-tree-icon.union { background: var(--secondary); color: var(--secondary); }
+                .mc-tree-icon.uint { background: #9CDCFE; color: #9CDCFE; }
+                .mc-tree-icon.bool { background: #569CD6; color: #569CD6; }
 
-                .mc-field-name {
+                .mc-tree-name {
                     flex: 1;
                     min-width: 0;
                     font-size: 13px;
@@ -1157,7 +1043,7 @@ export class StructParserPanel {
                     text-overflow: ellipsis;
                 }
 
-                .mc-field-type-badge {
+                .mc-tree-type-badge {
                     font-size: 10px;
                     font-weight: 600;
                     padding: 3px 8px;
@@ -1166,28 +1052,28 @@ export class StructParserPanel {
                     font-family: var(--vscode-editor-font-family);
                 }
 
-                .mc-field-type-badge.struct {
+                .mc-tree-type-badge.struct {
                     background: var(--primary-bg);
                     color: var(--primary);
                 }
 
-                .mc-field-type-badge.union {
+                .mc-tree-type-badge.union {
                     background: rgba(197, 134, 192, 0.12);
                     color: var(--secondary);
                 }
 
-                .mc-field-type-badge.uint,
-                .mc-field-type-badge.int {
+                .mc-tree-type-badge.uint,
+                .mc-tree-type-badge.int {
                     background: rgba(156, 220, 254, 0.12);
                     color: #9CDCFE;
                 }
 
-                .mc-field-type-badge.bool {
+                .mc-tree-type-badge.bool {
                     background: rgba(86, 156, 214, 0.12);
                     color: #569CD6;
                 }
 
-                .mc-field-value-input {
+                .mc-tree-value-input {
                     width: 70px;
                     padding: 6px 10px;
                     background: var(--input-bg);
@@ -1201,13 +1087,13 @@ export class StructParserPanel {
                     transition: all var(--transition);
                 }
 
-                .mc-field-value-input:focus {
+                .mc-tree-value-input:focus {
                     outline: none;
                     border-color: var(--primary);
                     box-shadow: 0 0 0 3px var(--primary-bg);
                 }
 
-                .mc-field-hex {
+                .mc-tree-hex {
                     min-width: 70px;
                     font-family: var(--vscode-editor-font-family);
                     font-size: 13px;
@@ -1216,23 +1102,14 @@ export class StructParserPanel {
                     font-weight: 500;
                 }
 
-                .mc-field-binary {
-                    min-width: 90px;
-                    font-family: var(--vscode-editor-font-family);
-                    font-size: 11px;
-                    color: var(--text-muted);
-                    letter-spacing: 0.5px;
-                    text-align: right;
-                }
-
-                .mc-field-bits {
+                .mc-tree-bits {
                     min-width: 50px;
                     font-size: 11px;
                     color: var(--text-secondary);
                     text-align: right;
                 }
 
-                .mc-field-copy {
+                .mc-tree-copy {
                     width: 28px;
                     height: 28px;
                     display: flex;
@@ -1248,40 +1125,35 @@ export class StructParserPanel {
                     font-size: 12px;
                 }
 
-                .mc-field-row:hover .mc-field-copy {
+                .mc-tree-node-header:hover .mc-tree-copy {
                     opacity: 1;
                 }
 
-                .mc-field-copy:hover {
+                .mc-tree-copy:hover {
                     background: var(--hover-bg);
                     color: var(--primary);
                 }
 
-                /* Nested fields */
-                .mc-field-children {
+                /* Nested nodes */
+                .mc-tree-children {
                     display: none;
-                    margin-left: 32px;
-                    border-left: 2px solid var(--border);
-                    padding-left: 12px;
+                    background: rgba(0, 0, 0, 0.05);
+                    border-left: 3px solid var(--border);
+                    margin-left: 20px;
                 }
 
-                .mc-field-children.expanded {
+                .mc-tree-children.expanded {
                     display: block;
                 }
 
-                /* Highlight */
-                .mc-field-row.highlighted {
-                    background: var(--primary-bg);
-                    border-color: var(--primary-border);
+                .mc-tree-children .mc-tree-node-header {
+                    padding-left: 30px;
                 }
 
-                /* Export section */
-                .mc-export-row {
-                    display: flex;
-                    gap: 8px;
-                    padding: 16px 20px;
-                    border-top: 1px solid var(--border);
-                    justify-content: flex-end;
+                /* Highlight */
+                .mc-tree-node-header.highlighted {
+                    background: var(--primary-bg);
+                    border-color: var(--primary-border);
                 }
 
                 /* Animations */
@@ -1299,7 +1171,7 @@ export class StructParserPanel {
                     animation: fadeIn 0.3s ease;
                 }
 
-                .mc-field-row {
+                .mc-tree-node {
                     animation: slideIn 0.2s ease;
                 }
 
@@ -1387,23 +1259,8 @@ export class StructParserPanel {
                     </div>
                 </div>
 
-                <!-- Bit Field Visualization Card -->
-                <div id="bitmapCard" class="mc-bitmap-card">
-                    <div class="mc-bitmap-header">
-                        <div class="mc-bitmap-title">
-                            <span class="mc-bitmap-icon">📊</span>
-                            <span>Bit Field Visualization</span>
-                        </div>
-                        <span id="fullValueDisplay" class="mc-bitmap-full-value"></span>
-                    </div>
-                    <div class="mc-bitmap-body">
-                        <div id="bitfieldViz" class="mc-bitmap"></div>
-                        <div id="bitLegend" class="mc-bit-legend"></div>
-                    </div>
-                </div>
-
                 <!-- Fields Card -->
-                <div id="fieldsCard" class="mc-fields-card">
+                <div id="fieldsCard" class="mc-fields-card" style="display: ${hasStruct ? 'block' : 'none'}">
                     <div class="mc-fields-header">
                         <div class="mc-fields-title">
                             <span class="mc-fields-icon">📋</span>
@@ -1412,9 +1269,7 @@ export class StructParserPanel {
                         <span id="fieldsCount" class="mc-fields-count">0</span>
                     </div>
                     <div id="fieldsList" class="mc-fields-list"></div>
-                    <div id="exportRow" class="mc-export-row" style="display: none;">
-                        <button id="btnExport" class="mc-btn mc-btn-primary mc-btn-sm">📤 Export Results</button>
-                    </div>
+
                 </div>
             </div>
 
@@ -1439,9 +1294,7 @@ export class StructParserPanel {
                     document.getElementById('btnCopyDef')?.addEventListener('click', () => {
                         vscode.postMessage({ command: 'copy', text: '${structName}' });
                     });
-                    document.getElementById('btnExport')?.addEventListener('click', () => {
-                        showExportMenu();
-                    });
+
                     document.getElementById('fieldsList')?.addEventListener('click', handleFieldClick);
                     document.getElementById('fieldsList')?.addEventListener('input', handleFieldInput);
                 }
@@ -1460,7 +1313,7 @@ export class StructParserPanel {
                 }
 
                 function filterFields(term) {
-                    const rows = document.querySelectorAll('.mc-field-row');
+                    const rows = document.querySelectorAll('.mc-tree-node-header');
                     const lowerTerm = term.toLowerCase();
                     rows.forEach(row => {
                         const name = row.getAttribute('data-name') || '';
@@ -1471,16 +1324,16 @@ export class StructParserPanel {
                 }
 
                 function handleFieldClick(e) {
-                    const expand = e.target.closest('.mc-field-expand');
+                    const expand = e.target.closest('.mc-tree-expand');
                     if (expand) {
                         const fieldName = expand.getAttribute('data-field');
-                        const children = document.querySelector('.mc-field-children[data-parent="' + fieldName + '"]');
+                        const children = document.querySelector('.mc-tree-children[data-parent="' + fieldName + '"]');
                         if (children) {
                             children.classList.toggle('expanded');
                             expand.classList.toggle('expanded');
                         }
                     }
-                    const copyBtn = e.target.closest('.mc-field-copy');
+                    const copyBtn = e.target.closest('.mc-tree-copy');
                     if (copyBtn) {
                         const value = copyBtn.getAttribute('data-value');
                         vscode.postMessage({ command: 'copy', text: value });
@@ -1488,7 +1341,7 @@ export class StructParserPanel {
                 }
 
                 function handleFieldInput(e) {
-                    if (e.target.classList.contains('mc-field-value-input')) {
+                    if (e.target.classList.contains('mc-tree-value-input')) {
                         const fieldName = e.target.getAttribute('data-field');
                         const bits = parseInt(e.target.getAttribute('data-bits'));
                         const newValue = parseInt(e.target.value);
@@ -1499,18 +1352,6 @@ export class StructParserPanel {
                             return;
                         }
                         vscode.postMessage({ command: 'updateField', fieldPath: [fieldName], newValue });
-                    }
-                }
-
-                function showExportMenu() {
-                    const formats = [
-                        { label: 'CSV', value: 'csv' },
-                        { label: 'JSON', value: 'json' },
-                        { label: 'Markdown', value: 'markdown' }
-                    ];
-                    const format = formats.find(f => confirm('Export as ' + f.label + '?'));
-                    if (format) {
-                        vscode.postMessage({ command: 'export', format: format.value });
                     }
                 }
 
@@ -1543,84 +1384,9 @@ export class StructParserPanel {
                         vscode.postMessage({ command: 'alert', text: data.error });
                         return;
                     }
-                    renderBitFieldVisualization(data.fields, data.binaryValue);
                     renderFieldsList(data.fields);
-                    document.getElementById('bitmapCard').style.display = 'block';
                     document.getElementById('fieldsCard').style.display = 'block';
-                    document.getElementById('exportRow').style.display = 'flex';
                     document.getElementById('fullValueDisplay').textContent = data.actualHexValue || data.hexValue;
-                }
-
-                function renderBitFieldVisualization(fields, binaryValue) {
-                    const container = document.getElementById('bitfieldViz');
-                    const legend = document.getElementById('bitLegend');
-                    if (!container) return;
-
-                    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
-                    const colorMap = {};
-                    let colorIndex = 0;
-
-                    let html = '';
-                    const processedFields = [];
-
-                    function processFields(fields, startBit) {
-                        fields.forEach(field => {
-                            const typeClass = field.type === 'struct' ? 'struct' :
-                                             field.type === 'union' ? 'union' :
-                                             field.type === 'bool' ? 'bool' : 'uint';
-
-                            if (!colorMap[field.type]) {
-                                colorMap[field.type] = colors[colorIndex % colors.length];
-                                colorIndex++;
-                            }
-
-                            const bits = field.bits;
-                            const value = field.value || 0;
-                            const hexVal = field.hex || '0x' + value.toString(16).toUpperCase();
-
-                            processedFields.push({
-                                name: field.name,
-                                type: field.type,
-                                typeClass,
-                                bits,
-                                value,
-                                hex: hexVal,
-                                color: colorMap[field.type]
-                            });
-
-                            if (field.children && field.children.length > 0) {
-                                processFields(field.children, 0);
-                            }
-                        });
-                    }
-
-                    processFields(fields, 0);
-
-                    processedFields.forEach(field => {
-                        const widthPercent = Math.max(60, field.bits * 3);
-                        html += \`
-                            <div class="mc-bit-block \${field.typeClass}" title="\${field.name}: \${field.value} (\${field.hex})">
-                                <div class="mc-bit-block-bar" style="background: \${field.color}; min-width: \${widthPercent}px;">
-                                    \${field.bits >= 4 ? field.value.toString(2) : ''}
-                                </div>
-                                <div class="mc-bit-block-name">\${field.name}</div>
-                                <div class="mc-bit-block-value">\${field.hex} (\${field.bits}b)</div>
-                            </div>
-                        \`;
-                    });
-
-                    container.innerHTML = html;
-
-                    let legendHtml = '';
-                    Object.entries(colorMap).forEach(([type, color]) => {
-                        legendHtml += \`
-                            <div class="mc-bit-legend-item">
-                                <span class="mc-bit-legend-color" style="background: \${color}"></span>
-                                <span>\${type}</span>
-                            </div>
-                        \`;
-                    });
-                    if (legend) legend.innerHTML = legendHtml;
                 }
 
                 function renderFieldsList(fields) {
@@ -1631,7 +1397,7 @@ export class StructParserPanel {
                     let count = 0;
                     let html = '';
 
-                    function renderFieldRow(field, level = 0) {
+                    function renderTreeNode(field, level = 0) {
                         const hasChildren = field.children && field.children.length > 0;
                         const fieldId = field.name.replace(/[^a-zA-Z0-9]/g, '_');
                         const typeClass = field.type === 'struct' ? 'struct' :
@@ -1641,29 +1407,33 @@ export class StructParserPanel {
 
                         count++;
                         html += \`
-                            <div class="mc-field-row" data-name="\${field.name}" data-type="\${field.type}">
-                                <div class="mc-field-expand \${hasChildren ? '' : 'no-children'}" data-field="\${field.name}">
-                                    \${hasChildren ? '▶' : ''}
+                            <div class="mc-tree-node">
+                                <div class="mc-tree-node-header" data-name="\${field.name}" data-type="\${field.type}">
+                                    <div class="mc-tree-expand \${hasChildren ? '' : 'no-children'}" data-field="\${field.name}">
+                                        \${hasChildren ? '▶' : ''}
+                                    </div>
+                                    <div class="mc-tree-node-content">
+                                        <span class="mc-tree-icon \${typeClass}"></span>
+                                        <span class="mc-tree-name">\${field.name}</span>
+                                        <span class="mc-tree-type-badge \${typeClass}">\${field.type}</span>
+                                        <input type="number" class="mc-tree-value-input" data-field="\${field.name}" data-bits="\${field.bits}" min="0" max="\${maxVal}" value="\${field.value}">
+                                        <span class="mc-tree-hex">\${field.hex}</span>
+                                        <span class="mc-tree-bits">\${field.bits}b</span>
+                                        <button class="mc-tree-copy" data-value="\${field.hex}">📋</button>
+                                    </div>
                                 </div>
-                                <span class="mc-field-icon \${typeClass}"></span>
-                                <span class="mc-field-name">\${field.name}</span>
-                                <span class="mc-field-type-badge \${typeClass}">\${field.type}</span>
-                                <input type="number" class="mc-field-value-input" data-field="\${field.name}" data-bits="\${field.bits}" min="0" max="\${maxVal}" value="\${field.value}">
-                                <span class="mc-field-hex">\${field.hex}</span>
-                                <span class="mc-field-binary">\${field.binary || ''}</span>
-                                <span class="mc-field-bits">\${field.bits}b</span>
-                                <button class="mc-field-copy" data-value="\${field.hex}">📋</button>
-                            </div>
                         \`;
 
                         if (hasChildren) {
-                            html += \`<div class="mc-field-children" data-parent="\${field.name}">\`;
-                            field.children.forEach(child => renderFieldRow(child, level + 1));
+                            html += \`<div class="mc-tree-children" data-parent="\${field.name}">\`;
+                            field.children.forEach(child => renderTreeNode(child, level + 1));
                             html += \`</div>\`;
                         }
+
+                        html += \`</div>\`;
                     }
 
-                    fields.forEach(field => renderFieldRow(field));
+                    fields.forEach(field => renderTreeNode(field));
 
                     container.innerHTML = html;
                     if (countEl) countEl.textContent = count;
@@ -1671,10 +1441,10 @@ export class StructParserPanel {
 
                 function updateFieldDisplay(message) {
                     const simpleFieldId = message.fieldPath[message.fieldPath.length - 1];
-                    const rows = document.querySelectorAll('.mc-field-row[data-name="' + simpleFieldId + '"]');
+                    const rows = document.querySelectorAll('.mc-tree-node-header[data-name="' + simpleFieldId + '"]');
                     rows.forEach(row => {
-                        const input = row.querySelector('.mc-field-value-input');
-                        const hex = row.querySelector('.mc-field-hex');
+                        const input = row.querySelector('.mc-tree-value-input');
+                        const hex = row.querySelector('.mc-tree-hex');
                         if (input) input.value = message.newValue;
                         if (hex) hex.textContent = message.newHex;
                     });
@@ -2643,11 +2413,6 @@ export class StructParserPanel {
                     }
                 });
 
-                // Export button
-                document.getElementById('btnExportResults')?.addEventListener('click', () => {
-                    showExportMenu();
-                });
-
                 // Copy results button
                 document.getElementById('btnCopyResults')?.addEventListener('click', () => {
                     copyAllResults();
@@ -2707,19 +2472,6 @@ export class StructParserPanel {
                     hexValue: hexValue,
                     structName: currentStructName
                 });
-            }
-
-            function showExportMenu() {
-                const formats = [
-                    { label: 'CSV', value: 'csv' },
-                    { label: 'JSON', value: 'json' },
-                    { label: 'Markdown', value: 'markdown' }
-                ];
-                
-                const format = formats.find(f => confirm('Export as ' + f.label + '?'));
-                if (format) {
-                    vscode.postMessage({ command: 'export', format: format.value });
-                }
             }
 
             function copyAllResults() {
