@@ -7,13 +7,13 @@ interface StructField {
     type: string;
     bits: number;
     offset: number;
-    children?: StructField[];
+    fields?: StructField[];
 }
 
 interface StructDef {
     name: string;
     type: string;
-    size_bits: number;
+    bits: number;
     fields: StructField[];
 }
 
@@ -114,19 +114,19 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         if (!searchTerm.trim()) {
             this._view.webview.postMessage({
                 command: 'searchResults',
-                results: allStructs.map(s => ({ name: s.name, type: s.type, size_bits: s.size_bits }))
+                results: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits }))
             });
             return;
         }
 
         const searchLower = searchTerm.toLowerCase();
         const filtered = allStructs.filter(s => 
-            s.name.toLowerCase().includes(searchLower)
+            s.type.toLowerCase().includes(searchLower)
         );
 
         this._view.webview.postMessage({
             command: 'searchResults',
-            results: filtered.map(s => ({ name: s.name, type: s.type, size_bits: s.size_bits }))
+            results: filtered.map(s => ({ name: s.type, structKind: s.type, bits: s.bits }))
         });
     }
 
@@ -134,7 +134,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         if (!this._structData) return;
 
         const struct = [...this._structData.structs, ...this._structData.unions]
-            .find(s => s.name === structName);
+            .find(s => s.type === structName);
 
         if (struct) {
             this._onStructSelected.fire(struct);
@@ -180,7 +180,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         const allStructs = this._getAllStructs();
         this._view.webview.postMessage({
             command: 'updateData',
-            structs: allStructs.map(s => ({ name: s.name, type: s.type, size_bits: s.size_bits })),
+            structs: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits })),
             hasData: allStructs.length > 0
         });
     }
@@ -191,7 +191,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
-        const allStructs = this._getAllStructs();
+        const allStructs = this._getAllStructs().map(s => ({ name: s.type, structKind: s.type, bits: s.bits }));
 
         return `<!DOCTYPE html>
         <html lang="en">
@@ -655,13 +655,13 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     </div>
                     <div id="structList" class="ss-list">
                         ${allStructs.length > 0 ? allStructs.map(s => `
-                            <div class="ss-item" data-name="${s.name.replace(/"/g, '&quot;')}">
-                                <span class="ss-item-icon ${s.type}"></span>
+                            <div class="ss-item" data-name="${s.structKind.replace(/"/g, '&quot;')}">
+                                <span class="ss-item-icon struct"></span>
                                 <div class="ss-item-content">
-                                    <div class="ss-item-name">${s.name}</div>
+                                    <div class="ss-item-name">${s.structKind}</div>
                                     <div class="ss-item-meta">
-                                        <span class="ss-item-type ${s.type}">${s.type}</span>
-                                        <span class="ss-item-bits">${s.size_bits} bits</span>
+                                        <span class="ss-item-type struct">${s.structKind}</span>
+                                        <span class="ss-item-bits">${s.bits} bits</span>
                                     </div>
                                 </div>
                                 <span class="ss-item-arrow">›</span>
@@ -679,13 +679,13 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
             <script>
                 const vscode = acquireVsCodeApi();
-                let allStructs = ${JSON.stringify(allStructs.map(s => ({ name: s.name, type: s.type, size_bits: s.size_bits })))};
+                let allStructs = ${JSON.stringify(allStructs)};
                 let selectedStruct = null;
 
                 document.getElementById('searchInput').addEventListener('input', (e) => {
                     const term = e.target.value.toLowerCase();
                     if (term) {
-                        const filtered = allStructs.filter(s => s.name.toLowerCase().includes(term));
+                        const filtered = allStructs.filter(s => s.structKind.toLowerCase().includes(term));
                         updateStructList(filtered);
                     } else {
                         updateStructList(allStructs);
@@ -751,13 +751,13 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     }
 
                     list.innerHTML = structs.map(s => \`
-                        <div class="ss-item" data-name="\${s.name.replace(/"/g, '&quot;')}">
-                            <span class="ss-item-icon \${s.type}"></span>
+                        <div class="ss-item" data-name="\${s.structKind.replace(/"/g, '&quot;')}">
+                            <span class="ss-item-icon struct"></span>
                             <div class="ss-item-content">
-                                <div class="ss-item-name">\${s.name}</div>
+                                <div class="ss-item-name">\${s.structKind}</div>
                                 <div class="ss-item-meta">
-                                    <span class="ss-item-type \${s.type}">\${s.type}</span>
-                                    <span class="ss-item-bits">\${s.size_bits} bits</span>
+                                    <span class="ss-item-type struct">\${s.structKind}</span>
+                                    <span class="ss-item-bits">\${s.bits} bits</span>
                                 </div>
                             </div>
                             <span class="ss-item-arrow">›</span>

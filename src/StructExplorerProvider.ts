@@ -7,12 +7,13 @@ interface StructField {
     type: string;
     bits: number;
     offset: number;
+    fields?: StructField[];
 }
 
 interface StructDef {
     name: string;
     type: string;
-    size_bits: number;
+    bits: number;
     fields: StructField[];
 }
 
@@ -142,17 +143,17 @@ export class StructExplorerProvider implements vscode.TreeDataProvider<StructTre
         } else if (element.label === 'Structs') {
             return Promise.resolve(
                 this._structData.structs.map(struct => new StructTreeItem(
-                    struct.name,
+                    struct.type,
                     'struct',
-                    struct.size_bits
+                    struct.bits
                 ))
             );
         } else if (element.label === 'Unions') {
             return Promise.resolve(
                 this._structData.unions.map(union => new StructTreeItem(
-                    union.name,
+                    union.type,
                     'union',
-                    union.size_bits
+                    union.bits
                 ))
             );
         }

@@ -8,13 +8,13 @@ interface StructField {
     bits: number;
     offset: number;
     value?: number;
-    children?: StructField[];
+    fields?: StructField[];
 }
 
 interface StructDef {
     name: string;
     type: string;
-    size_bits: number;
+    bits: number;
     fields: StructField[];
 }
 
@@ -28,6 +28,7 @@ interface ParsedField extends StructField {
     value: number;
     hex: string;
     fullHexValue: string;
+    fields?: ParsedField[];
 }
 
 interface HistoryItem {
@@ -142,7 +143,7 @@ export class StructParserPanel {
                     return;
                 }
                 
-                const structNames = [...this._structData.structs, ...this._structData.unions].map(s => s.name);
+                const structNames = [...this._structData.structs, ...this._structData.unions].map(s => s.type);
                 
                 this._panel.webview.postMessage({
                     command: 'jsonImported',
@@ -193,6 +194,10 @@ export class StructParserPanel {
 
     private _parseHexValue(hexValue: string, structName: string) {
         console.log('[StructParser] Parse called:', { hexValue, structName });
+
+        if (!structName) {
+            return;
+        }
         
         if (!this._structData) {
             this._panel.webview.postMessage({
@@ -202,8 +207,8 @@ export class StructParserPanel {
             return;
         }
 
-        const structDef = this._structData.structs.find(s => s.name === structName) ||
-                         this._structData.unions.find(s => s.name === structName);
+        const structDef = this._structData.structs.find(s => s.type === structName) ||
+                         this._structData.unions.find(s => s.type === structName);
 
         if (!structDef) {
             this._panel.webview.postMessage({
@@ -214,10 +219,13 @@ export class StructParserPanel {
         }
 
         const hexClean = hexValue.replace(/^0x/i, '');
+        if (!hexClean) {
+            return;
+        }
         const inputBits = hexClean.length * 4; // 每个16进制字符=4bit
         let fullValue = BigInt('0x' + hexClean);
         
-        const structBits = structDef.size_bits;
+        const structBits = structDef.bits;
         
         // 处理位宽对齐：不足补0，超出截断
         let adjustedValue = fullValue;
@@ -246,7 +254,7 @@ export class StructParserPanel {
         
         const binaryValue = adjustedValue.toString(2).padStart(structBits, '0');
 
-        const parsedFields = this._parseFields(structDef.fields, binaryValue, adjustedValue, structBits);
+        const parsedFields = this._parseFields(structDef.fields, binaryValue, adjustedValue);
 
         this._currentParsedData = {
             struct: structDef,
@@ -270,47 +278,25 @@ export class StructParserPanel {
         });
     }
 
-    private _parseFields(fields: StructField[], binaryValue: string, fullValue: bigint, totalBits: number, parentOffset: number = 0): ParsedField[] {
+    private _parseFields(fields: StructField[], binaryValue: string, fullValue: bigint): ParsedField[] {
         return fields.map(field => {
-            const absoluteOffset = parentOffset + field.offset;
-            
-            // offset 是从 MSB（最高位）开始的偏移量
-            // absoluteOffset=0 表示从最左边（最高位）开始
-            const startPos = absoluteOffset;
-            const endPos = absoluteOffset + field.bits;
+            // offset 是从 MSB(bit 0) 开始的绝对 bit 偏移
+            const startPos = field.offset;
+            const endPos = field.offset + field.bits;
             const fieldBits = binaryValue.substring(startPos, endPos);
-            const fieldValue = parseInt(fieldBits, 2);
-            
-            console.log(`[StructParser] Field ${field.name}: offset=${field.offset}, absOffset=${absoluteOffset}, bits=${field.bits}, binary=${fieldBits}, value=${fieldValue}`);
-            
+            const fieldValue = fieldBits.length > 0 ? parseInt(fieldBits, 2) : 0;
+
+            const { fields: _ignored, ...fieldWithoutFields } = field;
             const parsedField: ParsedField = {
-                ...field,
+                ...fieldWithoutFields,
                 binary: fieldBits,
                 value: fieldValue,
                 hex: '0x' + fieldValue.toString(16).toUpperCase(),
                 fullHexValue: '0x' + fullValue.toString(16).toUpperCase()
             };
 
-            if (field.children && field.children.length > 0) {
-                parsedField.children = this._parseFields(
-                    field.children, 
-                    fieldBits, 
-                    BigInt(fieldValue), 
-                    field.bits,
-                    0
-                );
-            } else if ((field.type === 'struct' || field.type === 'union') && this._structData) {
-                const nestedDef = this._structData.structs.find(s => s.name === field.name) ||
-                                 this._structData.unions.find(s => s.name === field.name);
-                if (nestedDef && nestedDef.fields) {
-                    parsedField.children = this._parseFields(
-                        nestedDef.fields,
-                        fieldBits,
-                        BigInt(fieldValue),
-                        field.bits,
-                        0
-                    );
-                }
+            if (field.fields && field.fields.length > 0) {
+                parsedField.fields = this._parseFields(field.fields, binaryValue, fullValue);
             }
 
             return parsedField;
@@ -320,66 +306,67 @@ export class StructParserPanel {
     private _updateFieldValue(fieldPath: string[], newValue: number) {
         if (!this._currentParsedData) return;
 
-        let currentFields: (ParsedField | StructField)[] = this._currentParsedData.fields;
-        let targetField: ParsedField | null = null;
+        // 找到目标叶子字段（通过递归按 name 查找）
+        const findField = (fields: ParsedField[], path: string[]): ParsedField | null => {
+            const name = path[0];
+            const field = fields.find(f => f.name === name);
+            if (!field) return null;
+            if (path.length === 1) return field;
+            if (field.fields) return findField(field.fields as ParsedField[], path.slice(1));
+            return null;
+        };
 
-        for (let i = 0; i < fieldPath.length; i++) {
-            const fieldName = fieldPath[i];
-            const found = currentFields.find(f => f.name === fieldName);
-            
-            if (!found) break;
-            
-            if (i < fieldPath.length - 1 && found.children) {
-                currentFields = found.children;
-            } else if (i === fieldPath.length - 1) {
-                targetField = found as ParsedField;
-            }
+        const targetField = findField(this._currentParsedData.fields, fieldPath);
+        if (!targetField) return;
+
+        const maxValue = (1 << targetField.bits) - 1;
+        if (newValue < 0 || newValue > maxValue) {
+            vscode.window.showWarningMessage(`Value out of range (0-${maxValue})`);
+            return;
         }
 
-        if (targetField) {
-            const maxValue = (1 << targetField.bits) - 1;
-            if (newValue < 0 || newValue > maxValue) {
-                vscode.window.showWarningMessage(`Value out of range (0-${maxValue})`);
-                return;
-            }
+        // 按 offset 和 bits 直接替换顶层 binaryValue 对应段
+        const binaryStr = this._currentParsedData.binaryValue;
+        const newBits = newValue.toString(2).padStart(targetField.bits, '0');
+        const newBinaryStr =
+            binaryStr.substring(0, targetField.offset) +
+            newBits +
+            binaryStr.substring(targetField.offset + targetField.bits);
 
-            targetField.value = newValue;
-            targetField.hex = '0x' + newValue.toString(16).toUpperCase();
-            targetField.binary = newValue.toString(2).padStart(targetField.bits, '0');
+        this._currentParsedData.binaryValue = newBinaryStr;
 
-            this._recalculateHexValue();
+        // 用新 binaryValue 重新解析全部字段
+        const newBigInt = BigInt('0b' + newBinaryStr);
+        this._currentParsedData.fields = this._parseFields(
+            this._currentParsedData.struct.fields,
+            newBinaryStr,
+            newBigInt
+        );
 
-            this._panel.webview.postMessage({
-                command: 'fieldUpdated',
-                fieldPath: fieldPath,
-                newValue: newValue,
-                newHex: targetField.hex,
-                newBinary: targetField.binary,
-                fullHexValue: this._currentParsedData ? 
-                    '0x' + BigInt('0b' + this._currentParsedData.binaryValue).toString(16).toUpperCase() : ''
-            });
-        }
+        const structBits = this._currentParsedData.struct.bits;
+        const newHexValue = '0x' + newBigInt.toString(16).toUpperCase().padStart(Math.ceil(structBits / 4), '0');
+        this._currentParsedData.hexValue = newHexValue;
+
+        this._panel.webview.postMessage({
+            command: 'parseResult',
+            struct: this._currentParsedData.struct,
+            fields: this._currentParsedData.fields,
+            hexValue: newHexValue,
+            actualHexValue: newHexValue,
+            binaryValue: newBinaryStr,
+            fullHexValue: newHexValue,
+            adjustedValue: false
+        });
     }
 
     private _recalculateHexValue() {
+        // 已由 _updateFieldValue 直接维护，此方法保留为兼容占位
         if (!this._currentParsedData) return;
-
-        let binaryStr = '';
-        const buildBinary = (fields: ParsedField[]) => {
-            fields.forEach(field => {
-                if (field.children && field.children.length > 0) {
-                    buildBinary(field.children as ParsedField[]);
-                } else {
-                    // 按照字段顺序拼接（从左到右，从MSB到LSB）
-                    binaryStr += field.binary;
-                }
-            });
-        };
-
-        buildBinary(this._currentParsedData.fields);
-        this._currentParsedData.binaryValue = binaryStr;
-        
-        console.log(`[StructParser] Recalculated binary: ${binaryStr} = 0x${BigInt('0b' + binaryStr).toString(16).toUpperCase()}`);
+        const binaryStr = this._currentParsedData.binaryValue;
+        if (binaryStr) {
+            const val = BigInt('0b' + binaryStr);
+            console.log(`[StructParser] Recalculated: 0x${val.toString(16).toUpperCase()}`);
+        }
     }
 
     private _searchFields(searchTerm: string) {
@@ -397,8 +384,8 @@ export class StructParserPanel {
                     results.push({ path: fullPath, field });
                 }
                 
-                if (field.children) {
-                    searchInFields(field.children as ParsedField[], fullPath);
+                if (field.fields) {
+                    searchInFields(field.fields as ParsedField[], fullPath);
                 }
             });
         };
@@ -454,8 +441,8 @@ export class StructParserPanel {
         const addFields = (fields: ParsedField[], prefix: string) => {
             fields.forEach(field => {
                 const name = prefix ? `${prefix}.${field.name}` : field.name;
-                if (field.children && field.children.length > 0) {
-                    addFields(field.children as ParsedField[], name);
+                if (field.fields && field.fields.length > 0) {
+                    addFields(field.fields as ParsedField[], name);
                 } else {
                     csv += `"${name}","${field.type}",${field.bits},${field.value},"${field.hex}","${field.binary}"\n`;
                 }
@@ -470,7 +457,7 @@ export class StructParserPanel {
         if (!this._currentParsedData) return '';
 
         let md = `# Struct Parse Result\n\n`;
-        md += `**Struct:** ${this._currentParsedData.struct.name}\n\n`;
+        md += `**Struct:** ${this._currentParsedData.struct.type}\n\n`;
         md += `**Hex Value:** ${this._currentParsedData.hexValue}\n\n`;
         md += `| Field | Type | Bits | Value | Hex | Binary |\n`;
         md += `|-------|------|------|-------|-----|--------|\n`;
@@ -478,8 +465,8 @@ export class StructParserPanel {
         const addFields = (fields: ParsedField[], prefix: string) => {
             fields.forEach(field => {
                 const name = prefix ? `${prefix}.${field.name}` : field.name;
-                if (field.children && field.children.length > 0) {
-                    addFields(field.children as ParsedField[], name);
+                if (field.fields && field.fields.length > 0) {
+                    addFields(field.fields as ParsedField[], name);
                 } else {
                     md += `| ${name} | ${field.type} | ${field.bits} | ${field.value} | ${field.hex} | ${field.binary} |\n`;
                 }
@@ -512,8 +499,9 @@ export class StructParserPanel {
     public showStructDefinition(struct: StructDef) {
         this._currentStruct = struct;
         this._currentParsedData = null;
-        const hexValue = '0x' + '0'.repeat(Math.ceil(struct.size_bits / 4));
-        this._parseHexValue(hexValue, struct.name);
+        const hexDigits = Math.max(1, Math.ceil(struct.bits / 4));
+        const hexValue = '0x' + '0'.repeat(hexDigits);
+        this._parseHexValue(hexValue, struct.type);
         this._update();
     }
 
@@ -525,7 +513,7 @@ export class StructParserPanel {
         let html = '';
         fields.forEach(field => {
             const indent = level * 16;
-            const hasChildren = field.children && field.children.length > 0;
+            const hasChildren = field.fields && field.fields.length > 0;
             const fieldId = field.name.replace(/[^a-zA-Z0-9]/g, '_');
             
             html += `
@@ -551,7 +539,7 @@ export class StructParserPanel {
             `;
             
             if (hasChildren) {
-                html += this._renderFieldList(field.children!, level + 1);
+                html += this._renderFieldList(field.fields!, level + 1);
             }
         });
         return html;
@@ -560,15 +548,15 @@ export class StructParserPanel {
     private _update() {
         const webview = this._panel.webview;
         // Update panel title to struct name if available
-        this._panel.title = this._currentStruct?.name || 'Struct Parser';
+        this._panel.title = this._currentStruct?.type || 'Struct Parser';
         this._panel.webview.html = this._getHtmlForWebview(webview);
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
         const hasStruct = this._currentStruct !== null;
-        const structName = this._currentStruct?.name || '';
+        const structName = this._currentStruct?.type || '';
         const structType = this._currentStruct?.type || '';
-        const structSize = this._currentStruct?.size_bits || 0;
+        const structSize = this._currentStruct?.bits || 0;
 
         return `<!DOCTYPE html>
         <html lang="en">
@@ -1085,6 +1073,14 @@ export class StructParserPanel {
                     font-weight: 500;
                     text-align: right;
                     transition: all var(--transition);
+                    -moz-appearance: textfield;
+                    appearance: textfield;
+                }
+
+                .mc-tree-value-input::-webkit-outer-spin-button,
+                .mc-tree-value-input::-webkit-inner-spin-button {
+                    -webkit-appearance: none;
+                    margin: 0;
                 }
 
                 .mc-tree-value-input:focus {
@@ -1296,7 +1292,7 @@ export class StructParserPanel {
                     });
 
                     document.getElementById('fieldsList')?.addEventListener('click', handleFieldClick);
-                    document.getElementById('fieldsList')?.addEventListener('input', handleFieldInput);
+                    document.getElementById('fieldsList')?.addEventListener('change', handleFieldChange);
                 }
 
                 function parseValue() {
@@ -1340,18 +1336,26 @@ export class StructParserPanel {
                     }
                 }
 
-                function handleFieldInput(e) {
+                function handleFieldChange(e) {
                     if (e.target.classList.contains('mc-tree-value-input')) {
-                        const fieldName = e.target.getAttribute('data-field');
+                        const fieldPath = JSON.parse(e.target.getAttribute('data-path') || '[]');
                         const bits = parseInt(e.target.getAttribute('data-bits'));
-                        const newValue = parseInt(e.target.value);
-                        if (isNaN(newValue)) return;
-                        const maxVal = (1 << bits) - 1;
-                        if (newValue < 0 || newValue > maxVal) {
-                            vscode.postMessage({ command: 'alert', text: 'Value out of range (0-' + maxVal + ')' });
+                        const maxVal = bits >= 32 ? 4294967295 : (1 << bits) - 1;
+                        const raw = e.target.value.trim();
+                        // 支持 0x 十六进制输入
+                        const newValue = raw.startsWith('0x') || raw.startsWith('0X')
+                            ? parseInt(raw, 16)
+                            : parseInt(raw, 10);
+                        if (isNaN(newValue)) {
+                            e.target.value = e.target.getAttribute('data-orig') || '0';
                             return;
                         }
-                        vscode.postMessage({ command: 'updateField', fieldPath: [fieldName], newValue });
+                        if (newValue < 0 || newValue > maxVal) {
+                            vscode.postMessage({ command: 'alert', text: 'Value out of range (0-' + maxVal + ')' });
+                            e.target.value = e.target.getAttribute('data-orig') || '0';
+                            return;
+                        }
+                        vscode.postMessage({ command: 'updateField', fieldPath, newValue });
                     }
                 }
 
@@ -1372,9 +1376,6 @@ export class StructParserPanel {
                                 if (hexInput) hexInput.value = message.actualHexValue;
                             }
                             break;
-                        case 'fieldUpdated':
-                            updateFieldDisplay(message);
-                            break;
                     }
                 });
 
@@ -1386,7 +1387,6 @@ export class StructParserPanel {
                     }
                     renderFieldsList(data.fields);
                     document.getElementById('fieldsCard').style.display = 'block';
-                    document.getElementById('fullValueDisplay').textContent = data.actualHexValue || data.hexValue;
                 }
 
                 function renderFieldsList(fields) {
@@ -1397,13 +1397,14 @@ export class StructParserPanel {
                     let count = 0;
                     let html = '';
 
-                    function renderTreeNode(field, level = 0) {
-                        const hasChildren = field.children && field.children.length > 0;
-                        const fieldId = field.name.replace(/[^a-zA-Z0-9]/g, '_');
+                    function renderTreeNode(field, level = 0, parentPath = []) {
+                        const hasChildren = field.fields && field.fields.length > 0;
+                        const fieldPath = [...parentPath, field.name];
                         const typeClass = field.type === 'struct' ? 'struct' :
                                         field.type === 'union' ? 'union' :
                                         field.type === 'bool' ? 'bool' : 'uint';
-                        const maxVal = (1 << field.bits) - 1;
+                        const maxVal = field.bits >= 32 ? 4294967295 : (1 << field.bits) - 1;
+                        const pathJson = JSON.stringify(fieldPath).replace(/"/g, '&quot;');
 
                         count++;
                         html += \`
@@ -1416,7 +1417,7 @@ export class StructParserPanel {
                                         <span class="mc-tree-icon \${typeClass}"></span>
                                         <span class="mc-tree-name">\${field.name}</span>
                                         <span class="mc-tree-type-badge \${typeClass}">\${field.type}</span>
-                                        <input type="number" class="mc-tree-value-input" data-field="\${field.name}" data-bits="\${field.bits}" min="0" max="\${maxVal}" value="\${field.value}">
+                                        <input type="text" class="mc-tree-value-input" data-path="\${pathJson}" data-bits="\${field.bits}" data-orig="\${field.value}" value="\${field.value}" title="max: \${maxVal} (\${field.bits}bits)">
                                         <span class="mc-tree-hex">\${field.hex}</span>
                                         <span class="mc-tree-bits">\${field.bits}b</span>
                                         <button class="mc-tree-copy" data-value="\${field.hex}">📋</button>
@@ -1426,7 +1427,7 @@ export class StructParserPanel {
 
                         if (hasChildren) {
                             html += \`<div class="mc-tree-children" data-parent="\${field.name}">\`;
-                            field.children.forEach(child => renderTreeNode(child, level + 1));
+                            field.fields.forEach(child => renderTreeNode(child, level + 1, fieldPath));
                             html += \`</div>\`;
                         }
 
@@ -1439,21 +1440,6 @@ export class StructParserPanel {
                     if (countEl) countEl.textContent = count;
                 }
 
-                function updateFieldDisplay(message) {
-                    const simpleFieldId = message.fieldPath[message.fieldPath.length - 1];
-                    const rows = document.querySelectorAll('.mc-tree-node-header[data-name="' + simpleFieldId + '"]');
-                    rows.forEach(row => {
-                        const input = row.querySelector('.mc-tree-value-input');
-                        const hex = row.querySelector('.mc-tree-hex');
-                        if (input) input.value = message.newValue;
-                        if (hex) hex.textContent = message.newHex;
-                    });
-                    if (message.fullHexValue) {
-                        document.getElementById('fullValueDisplay').textContent = message.fullHexValue;
-                        const hexInput = document.getElementById('hexInput');
-                        if (hexInput) hexInput.value = message.fullHexValue;
-                    }
-                }
             </script>
         </body>
         </html>`;
@@ -2558,7 +2544,7 @@ export class StructParserPanel {
                 updateFieldValues(data.fields);
                 
                 // Render bit field visualization
-                renderBitFieldVisualization(data.struct.fields, data.struct.size_bits);
+                renderBitFieldVisualization(data.struct.fields, data.struct.bits);
                 
                 // Show export button
                 const exportContainer = document.getElementById('exportContainer');
@@ -2625,8 +2611,8 @@ export class StructParserPanel {
                     if (inputEl) inputEl.value = field.value;
                     
                     // Recursively update children
-                    if (field.children && field.children.length > 0) {
-                        updateFieldValues(field.children);
+                    if (field.fields && field.fields.length > 0) {
+                        updateFieldValues(field.fields);
                     }
                 });
             }
@@ -2637,7 +2623,7 @@ export class StructParserPanel {
                 fields.forEach(field => {
                     const currentPath = [...path, field.name];
                     const pathStr = currentPath.join('.');
-                    const hasChildren = field.children && field.children.length > 0;
+                    const hasChildren = field.fields && field.fields.length > 0;
                     const isExpanded = expandedNodes.has(pathStr);
                     
                     html += '<div class="sp-field-row" data-path="' + pathStr + '">';
@@ -2665,7 +2651,7 @@ export class StructParserPanel {
                     
                     if (hasChildren) {
                         html += '<div class="sp-children ' + (isExpanded ? 'expanded' : '') + '" id="children-' + pathStr + '">';
-                        html += renderTree(field.children, currentPath);
+                        html += renderTree(field.fields, currentPath);
                         html += '</div>';
                     }
                 });

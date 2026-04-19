@@ -7,12 +7,13 @@ interface StructField {
     type: string;
     bits: number;
     offset: number;
+    fields?: StructField[];
 }
 
 interface StructDef {
     name: string;
     type: string;
-    size_bits: number;
+    bits: number;
     fields: StructField[];
 }
 
@@ -117,18 +118,18 @@ export class StructDataProvider implements vscode.TreeDataProvider<StructItem | 
             
             this._structData.structs.forEach(struct => {
                 items.push(new StructItem(
-                    struct.name,
+                    struct.type,
                     'struct',
-                    struct.size_bits,
+                    struct.bits,
                     vscode.TreeItemCollapsibleState.Collapsed
                 ));
             });
 
             this._structData.unions.forEach(union => {
                 items.push(new StructItem(
-                    union.name,
+                    union.type,
                     'union',
-                    union.size_bits,
+                    union.bits,
                     vscode.TreeItemCollapsibleState.Collapsed
                 ));
             });
@@ -136,8 +137,8 @@ export class StructDataProvider implements vscode.TreeDataProvider<StructItem | 
             return Promise.resolve(items);
         } else if (element instanceof StructItem) {
             // Return fields for the selected struct/union
-            const structDef = this._structData.structs.find(s => s.name === element.label) ||
-                             this._structData.unions.find(s => s.name === element.label);
+            const structDef = this._structData.structs.find(s => s.type === element.label) ||
+                             this._structData.unions.find(s => s.type === element.label);
             
             if (structDef) {
                 return Promise.resolve(
