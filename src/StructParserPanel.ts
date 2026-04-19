@@ -574,122 +574,1116 @@ export class StructParserPanel {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Struct Parser</title>
             <style>
-                ${this._getCssStyles()}
+                :root {
+                    --primary: #4EC9B0;
+                    --primary-hover: #3DB8A0;
+                    --primary-bg: rgba(78, 201, 176, 0.12);
+                    --primary-border: rgba(78, 201, 176, 0.3);
+                    --secondary: #C586C0;
+                    --accent: #75BEFF;
+                    --text-primary: var(--vscode-foreground);
+                    --text-secondary: var(--vscode-descriptionForeground);
+                    --text-muted: var(--vscode-textPreformat-foreground);
+                    --bg: var(--vscode-editor-background);
+                    --panel-bg: var(--vscode-panel-background);
+                    --border: var(--vscode-panel-border);
+                    --input-bg: var(--vscode-input-background);
+                    --input-border: var(--vscode-input-border);
+                    --hover-bg: var(--vscode-list-hoverBackground);
+                    --selection-bg: var(--vscode-list-activeSelectionBackground);
+                    --toolbar-hover: var(--vscode-toolbar-hoverBackground);
+                    --radius-xs: 4px;
+                    --radius-sm: 6px;
+                    --radius-md: 10px;
+                    --radius-lg: 14px;
+                    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+                    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+                    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.16);
+                    --shadow-glow: 0 0 20px rgba(78, 201, 176, 0.3);
+                    --transition: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+
+                body {
+                    font-family: var(--vscode-font-family);
+                    font-size: 13px;
+                    color: var(--text-primary);
+                    background-color: var(--bg);
+                    line-height: 1.5;
+                    padding: 16px;
+                }
+
+                .mc-layout {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
+                    max-width: 1000px;
+                    margin: 0 auto;
+                }
+
+                /* Header Card */
+                .mc-header-card {
+                    background: var(--panel-bg);
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius-lg);
+                    padding: 20px;
+                    box-shadow: var(--shadow-sm);
+                    display: ${hasStruct ? 'block' : 'none'};
+                }
+
+                .mc-header-content {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                }
+
+                .mc-header-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+
+                .mc-struct-icon {
+                    width: 48px;
+                    height: 48px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: var(--primary-bg);
+                    border-radius: var(--radius-md);
+                    font-size: 24px;
+                }
+
+                .mc-struct-name {
+                    font-size: 20px;
+                    font-weight: 600;
+                    color: var(--text-primary);
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .mc-struct-type {
+                    font-size: 11px;
+                    font-weight: 500;
+                    padding: 3px 10px;
+                    border-radius: var(--radius-full);
+                    text-transform: uppercase;
+                }
+
+                .mc-struct-type.struct {
+                    background: var(--primary-bg);
+                    color: var(--primary);
+                }
+
+                .mc-struct-type.union {
+                    background: rgba(197, 134, 192, 0.12);
+                    color: var(--secondary);
+                }
+
+                .mc-struct-meta {
+                    font-size: 13px;
+                    color: var(--text-secondary);
+                    margin-top: 4px;
+                }
+
+                .mc-header-actions {
+                    display: flex;
+                    gap: 8px;
+                }
+
+                /* Input Card */
+                .mc-input-card {
+                    background: var(--panel-bg);
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius-lg);
+                    padding: 20px;
+                    box-shadow: var(--shadow-sm);
+                }
+
+                .mc-input-row {
+                    display: flex;
+                    gap: 12px;
+                    align-items: stretch;
+                }
+
+                .mc-input-group {
+                    flex: 1;
+                    display: flex;
+                    align-items: stretch;
+                    background: var(--input-bg);
+                    border: 2px solid var(--input-border);
+                    border-radius: var(--radius-md);
+                    overflow: hidden;
+                    transition: all var(--transition);
+                }
+
+                .mc-input-group:focus-within {
+                    border-color: var(--primary);
+                    box-shadow: 0 0 0 4px var(--primary-bg);
+                }
+
+                .mc-input-prefix {
+                    display: flex;
+                    align-items: center;
+                    padding: 0 16px;
+                    background: rgba(0, 0, 0, 0.2);
+                    color: var(--primary);
+                    font-family: var(--vscode-editor-font-family);
+                    font-weight: 700;
+                    font-size: 16px;
+                    border-right: 1px solid var(--input-border);
+                }
+
+                .mc-input {
+                    flex: 1;
+                    padding: 14px 16px;
+                    background: transparent;
+                    border: none;
+                    color: var(--text-primary);
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 18px;
+                    font-weight: 500;
+                    letter-spacing: 1px;
+                }
+
+                .mc-input:focus {
+                    outline: none;
+                }
+
+                .mc-input::placeholder {
+                    color: var(--text-muted);
+                    font-weight: 400;
+                }
+
+                .mc-btn {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    padding: 14px 24px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    border: none;
+                    border-radius: var(--radius-md);
+                    cursor: pointer;
+                    transition: all var(--transition);
+                    font-family: inherit;
+                }
+
+                .mc-btn-primary {
+                    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+                    color: white;
+                    box-shadow: 0 4px 12px rgba(78, 201, 176, 0.35);
+                }
+
+                .mc-btn-primary:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(78, 201, 176, 0.45);
+                }
+
+                .mc-btn-primary:active {
+                    transform: translateY(0);
+                }
+
+                .mc-btn-icon {
+                    width: 36px;
+                    height: 36px;
+                    padding: 0;
+                    background: transparent;
+                    color: var(--text-secondary);
+                    border-radius: var(--radius-sm);
+                }
+
+                .mc-btn-icon:hover {
+                    background: var(--hover-bg);
+                    color: var(--text-primary);
+                }
+
+                /* Empty State */
+                .mc-empty-state {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 60px 24px;
+                    text-align: center;
+                    min-height: 350px;
+                }
+
+                .mc-empty-icon {
+                    font-size: 64px;
+                    margin-bottom: 20px;
+                    opacity: 0.6;
+                }
+
+                .mc-empty-title {
+                    font-size: 20px;
+                    font-weight: 600;
+                    color: var(--text-primary);
+                    margin-bottom: 8px;
+                }
+
+                .mc-empty-text {
+                    font-size: 14px;
+                    color: var(--text-secondary);
+                    margin-bottom: 32px;
+                    max-width: 320px;
+                }
+
+                .mc-steps {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    text-align: left;
+                    width: 100%;
+                    max-width: 320px;
+                    padding: 20px;
+                    background: var(--panel-bg);
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius-lg);
+                }
+
+                .mc-step {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+
+                .mc-step-num {
+                    width: 28px;
+                    height: 28px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: var(--primary-bg);
+                    color: var(--primary);
+                    border-radius: 50%;
+                    font-size: 12px;
+                    font-weight: 700;
+                    flex-shrink: 0;
+                }
+
+                .mc-step-text {
+                    font-size: 13px;
+                    color: var(--text-primary);
+                }
+
+                /* Bit Field Visualization Card */
+                .mc-bitmap-card {
+                    background: var(--panel-bg);
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius-lg);
+                    overflow: hidden;
+                    box-shadow: var(--shadow-sm);
+                    display: none;
+                }
+
+                .mc-bitmap-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 14px 20px;
+                    background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+                    border-bottom: 1px solid var(--border);
+                }
+
+                .mc-bitmap-title {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: var(--text-primary);
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+
+                .mc-bitmap-icon {
+                    font-size: 16px;
+                    color: var(--primary);
+                }
+
+                .mc-bitmap-full-value {
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 14px;
+                    color: var(--accent);
+                    font-weight: 600;
+                }
+
+                .mc-bitmap-body {
+                    padding: 16px;
+                }
+
+                .mc-bitmap {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 4px;
+                    padding: 12px;
+                    background: rgba(0, 0, 0, 0.15);
+                    border-radius: var(--radius-md);
+                }
+
+                .mc-bit-block {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 8px;
+                    border-radius: var(--radius-sm);
+                    cursor: pointer;
+                    transition: all var(--transition);
+                    min-width: 60px;
+                }
+
+                .mc-bit-block:hover {
+                    transform: translateY(-3px);
+                    background: rgba(255, 255, 255, 0.05);
+                }
+
+                .mc-bit-block-bar {
+                    width: 100%;
+                    height: 36px;
+                    border-radius: 4px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: rgba(0, 0, 0, 0.7);
+                    transition: all var(--transition);
+                    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+                }
+
+                .mc-bit-block-bar:hover {
+                    filter: brightness(1.15);
+                    transform: scaleY(1.1);
+                }
+
+                .mc-bit-block.struct .mc-bit-block-bar { background: linear-gradient(135deg, #4EC9B0, #3DB8A0); }
+                .mc-bit-block.union .mc-bit-block-bar { background: linear-gradient(135deg, #C586C0, #B575B0); }
+                .mc-bit-block.uint .mc-bit-block-bar { background: linear-gradient(135deg, #9CDCFE, #7BC4F8); }
+                .mc-bit-block.bool .mc-bit-block-bar { background: linear-gradient(135deg, #569CD6, #4A8BC4); }
+
+                .mc-bit-block-name {
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: var(--text-primary);
+                    max-width: 70px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+
+                .mc-bit-block-value {
+                    font-size: 10px;
+                    color: var(--text-secondary);
+                    font-family: var(--vscode-editor-font-family);
+                }
+
+                .mc-bit-legend {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 12px;
+                    margin-top: 12px;
+                    padding-top: 12px;
+                    border-top: 1px solid var(--border);
+                }
+
+                .mc-bit-legend-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 11px;
+                    color: var(--text-secondary);
+                }
+
+                .mc-bit-legend-color {
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 3px;
+                }
+
+                /* Fields Card */
+                .mc-fields-card {
+                    background: var(--panel-bg);
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius-lg);
+                    overflow: hidden;
+                    box-shadow: var(--shadow-sm);
+                    display: none;
+                }
+
+                .mc-fields-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 14px 20px;
+                    background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+                    border-bottom: 1px solid var(--border);
+                }
+
+                .mc-fields-title {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: var(--text-primary);
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+
+                .mc-fields-icon {
+                    font-size: 16px;
+                    color: var(--primary);
+                }
+
+                .mc-fields-count {
+                    font-size: 11px;
+                    padding: 3px 10px;
+                    background: var(--primary-bg);
+                    color: var(--primary);
+                    border-radius: var(--radius-full);
+                    font-weight: 600;
+                }
+
+                /* Search */
+                .mc-search-card {
+                    background: var(--panel-bg);
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius-lg);
+                    padding: 12px;
+                    box-shadow: var(--shadow-sm);
+                }
+
+                .mc-search {
+                    position: relative;
+                }
+
+                .mc-search-icon {
+                    position: absolute;
+                    left: 12px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    font-size: 14px;
+                    color: var(--text-muted);
+                    pointer-events: none;
+                }
+
+                .mc-search-input {
+                    width: 100%;
+                    padding: 10px 36px;
+                    border: 1px solid var(--input-border);
+                    border-radius: var(--radius-md);
+                    background: var(--input-bg);
+                    color: var(--text-primary);
+                    font-size: 13px;
+                    transition: all var(--transition);
+                }
+
+                .mc-search-input:focus {
+                    outline: none;
+                    border-color: var(--primary);
+                    box-shadow: 0 0 0 3px var(--primary-bg);
+                }
+
+                .mc-search-input::placeholder {
+                    color: var(--text-muted);
+                }
+
+                /* Fields List */
+                .mc-fields-list {
+                    max-height: 400px;
+                    overflow-y: auto;
+                }
+
+                .mc-field-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding: 12px 20px;
+                    border-bottom: 1px solid var(--border);
+                    transition: all var(--transition);
+                }
+
+                .mc-field-row:last-child {
+                    border-bottom: none;
+                }
+
+                .mc-field-row:hover {
+                    background: var(--hover-bg);
+                }
+
+                .mc-field-expand {
+                    width: 20px;
+                    height: 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 12px;
+                    color: var(--text-muted);
+                    cursor: pointer;
+                    transition: transform var(--transition);
+                }
+
+                .mc-field-expand.expanded {
+                    transform: rotate(90deg);
+                }
+
+                .mc-field-icon {
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 50%;
+                    flex-shrink: 0;
+                    box-shadow: 0 0 6px currentColor;
+                }
+
+                .mc-field-icon.struct { background: var(--primary); color: var(--primary); }
+                .mc-field-icon.union { background: var(--secondary); color: var(--secondary); }
+                .mc-field-icon.uint { background: #9CDCFE; color: #9CDCFE; }
+                .mc-field-icon.bool { background: #569CD6; color: #569CD6; }
+
+                .mc-field-name {
+                    flex: 1;
+                    min-width: 0;
+                    font-size: 13px;
+                    font-weight: 500;
+                    color: var(--text-primary);
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+
+                .mc-field-type-badge {
+                    font-size: 10px;
+                    font-weight: 600;
+                    padding: 3px 8px;
+                    border-radius: var(--radius-sm);
+                    text-transform: uppercase;
+                    font-family: var(--vscode-editor-font-family);
+                }
+
+                .mc-field-type-badge.struct {
+                    background: var(--primary-bg);
+                    color: var(--primary);
+                }
+
+                .mc-field-type-badge.union {
+                    background: rgba(197, 134, 192, 0.12);
+                    color: var(--secondary);
+                }
+
+                .mc-field-type-badge.uint,
+                .mc-field-type-badge.int {
+                    background: rgba(156, 220, 254, 0.12);
+                    color: #9CDCFE;
+                }
+
+                .mc-field-type-badge.bool {
+                    background: rgba(86, 156, 214, 0.12);
+                    color: #569CD6;
+                }
+
+                .mc-field-value-input {
+                    width: 70px;
+                    padding: 6px 10px;
+                    background: var(--input-bg);
+                    border: 1px solid var(--input-border);
+                    border-radius: var(--radius-sm);
+                    color: var(--text-primary);
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 13px;
+                    font-weight: 500;
+                    text-align: right;
+                    transition: all var(--transition);
+                }
+
+                .mc-field-value-input:focus {
+                    outline: none;
+                    border-color: var(--primary);
+                    box-shadow: 0 0 0 3px var(--primary-bg);
+                }
+
+                .mc-field-hex {
+                    min-width: 70px;
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 13px;
+                    color: var(--accent);
+                    text-align: right;
+                    font-weight: 500;
+                }
+
+                .mc-field-binary {
+                    min-width: 90px;
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 11px;
+                    color: var(--text-muted);
+                    letter-spacing: 0.5px;
+                    text-align: right;
+                }
+
+                .mc-field-bits {
+                    min-width: 50px;
+                    font-size: 11px;
+                    color: var(--text-secondary);
+                    text-align: right;
+                }
+
+                .mc-field-copy {
+                    width: 28px;
+                    height: 28px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: transparent;
+                    border: none;
+                    border-radius: var(--radius-sm);
+                    color: var(--text-muted);
+                    cursor: pointer;
+                    opacity: 0;
+                    transition: all var(--transition);
+                    font-size: 12px;
+                }
+
+                .mc-field-row:hover .mc-field-copy {
+                    opacity: 1;
+                }
+
+                .mc-field-copy:hover {
+                    background: var(--hover-bg);
+                    color: var(--primary);
+                }
+
+                /* Nested fields */
+                .mc-field-children {
+                    display: none;
+                    margin-left: 32px;
+                    border-left: 2px solid var(--border);
+                    padding-left: 12px;
+                }
+
+                .mc-field-children.expanded {
+                    display: block;
+                }
+
+                /* Highlight */
+                .mc-field-row.highlighted {
+                    background: var(--primary-bg);
+                    border-color: var(--primary-border);
+                }
+
+                /* Export section */
+                .mc-export-row {
+                    display: flex;
+                    gap: 8px;
+                    padding: 16px 20px;
+                    border-top: 1px solid var(--border);
+                    justify-content: flex-end;
+                }
+
+                /* Animations */
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+
+                @keyframes slideIn {
+                    from { opacity: 0; transform: translateX(-10px); }
+                    to { opacity: 1; transform: translateX(0); }
+                }
+
+                .mc-animate-fade {
+                    animation: fadeIn 0.3s ease;
+                }
+
+                .mc-field-row {
+                    animation: slideIn 0.2s ease;
+                }
+
+                /* Responsive */
+                @media (max-width: 768px) {
+                    .mc-input-row {
+                        flex-direction: column;
+                    }
+
+                    .mc-btn-primary {
+                        width: 100%;
+                    }
+
+                    .mc-field-row {
+                        flex-wrap: wrap;
+                    }
+
+                    .mc-field-binary {
+                        display: none;
+                    }
+                }
             </style>
         </head>
         <body>
-            <div class="sp-container">
-                <!-- Header with Struct Info -->
-                <header class="sp-header-compact" id="headerSection" style="display: ${hasStruct ? 'block' : 'none'}">
-                    <div class="sp-struct-info">
-                        <div class="sp-struct-name">
-                            <span class="sp-type-icon ${structType}"></span>
-                            <span>${structName}</span>
-                            <span class="sp-struct-size">${structSize} bits</span>
-                        </div>
-                    </div>
-                </header>
-
+            <div class="mc-layout">
                 <!-- Empty State -->
-                <div id="emptyState" class="sp-empty-state" style="display: ${hasStruct ? 'none' : 'flex'}">
-                    <div class="sp-empty-state-content">
-                        <div class="sp-empty-icon">
-                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                <polyline points="14 2 14 8 20 8"/>
-                                <line x1="16" y1="13" x2="8" y2="13"/>
-                                <line x1="16" y1="17" x2="8" y2="17"/>
-                                <polyline points="10 9 9 9 8 9"/>
-                            </svg>
+                <div id="emptyState" class="mc-empty-state" style="display: ${hasStruct ? 'none' : 'flex'}">
+                    <div class="mc-empty-icon">📊</div>
+                    <div class="mc-empty-title">Struct Parser</div>
+                    <div class="mc-empty-text">Select a struct from the sidebar to start parsing hex values</div>
+                    <div class="mc-steps">
+                        <div class="mc-step">
+                            <span class="mc-step-num">1</span>
+                            <span class="mc-step-text">Import JSON file from sidebar</span>
                         </div>
-                        <div class="sp-empty-text">Ready to Parse</div>
-                        <div class="sp-empty-hint">Select a struct from the sidebar to get started</div>
-                        <div class="sp-empty-steps">
-                            <div class="sp-step">
-                                <span class="sp-step-number">1</span>
-                                <span class="sp-step-text">Import JSON file from sidebar</span>
-                            </div>
-                            <div class="sp-step">
-                                <span class="sp-step-number">2</span>
-                                <span class="sp-step-text">Select a struct to view its definition</span>
-                            </div>
-                            <div class="sp-step">
-                                <span class="sp-step-number">3</span>
-                                <span class="sp-step-text">Enter hex value and parse</span>
-                            </div>
+                        <div class="mc-step">
+                            <span class="mc-step-num">2</span>
+                            <span class="mc-step-text">Select a struct from the list</span>
+                        </div>
+                        <div class="mc-step">
+                            <span class="mc-step-num">3</span>
+                            <span class="mc-step-text">Enter hex value and parse</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Main Input Area -->
-                <section class="sp-section sp-section-compact" id="inputSection" style="display: ${hasStruct ? 'block' : 'none'}">
-                    <div class="sp-input-row">
-                        <div class="sp-input-group sp-flex-1">
-                            <span class="sp-input-prefix">0x</span>
-                            <input type="text" id="hexInput" class="sp-input" placeholder="Enter hex value" maxlength="16">
+                <!-- Header Card -->
+                <div id="headerCard" class="mc-header-card" style="display: ${hasStruct ? 'block' : 'none'}">
+                    <div class="mc-header-content">
+                        <div class="mc-header-info">
+                            <div class="mc-struct-icon">📐</div>
+                            <div>
+                                <div class="mc-struct-name">
+                                    <span>${structName}</span>
+                                    <span class="mc-struct-type ${structType}">${structType}</span>
+                                </div>
+                                <div class="mc-struct-meta">${structSize} bits total</div>
+                            </div>
                         </div>
-                        <button id="btnParse" class="sp-btn sp-btn-primary">
-                            ▶ Parse
+                        <div class="mc-header-actions">
+                            <button id="btnCopyDef" class="mc-btn mc-btn-icon" title="Copy Definition">📋</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Card -->
+                <div id="inputCard" class="mc-input-card" style="display: ${hasStruct ? 'block' : 'none'}">
+                    <div class="mc-input-row">
+                        <div class="mc-input-group">
+                            <span class="mc-input-prefix">0x</span>
+                            <input type="text" id="hexInput" class="mc-input" placeholder="Enter hex value to parse" maxlength="16">
+                        </div>
+                        <button id="btnParse" class="mc-btn mc-btn-primary">
+                            <span>▶</span>
+                            <span>Parse</span>
                         </button>
                     </div>
-                </section>
+                </div>
 
-                <!-- Struct Definition Section -->
-                <section class="sp-section sp-section-results" id="definitionSection" style="display: ${hasStruct ? 'block' : 'none'}">
-                    <div class="sp-section-header">
-                        <div class="sp-section-title-wrapper">
-                            <span class="sp-section-title">Struct Definition</span>
-                            <span class="sp-bit-count">${structSize} bits total</span>
-                        </div>
-                        <div class="sp-toolbar">
-                            <button id="btnSearch" class="sp-btn sp-btn-icon" title="Search Fields">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="11" cy="11" r="8"/>
-                                    <path d="m21 21-4.35-4.35"/>
-                                </svg>
-                            </button>
-                            <button id="btnCopyDef" class="sp-btn sp-btn-icon" title="Copy Definition">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                                </svg>
-                            </button>
-                        </div>
+                <!-- Search Card -->
+                <div id="searchCard" class="mc-search-card" style="display: ${hasStruct ? 'block' : 'none'}">
+                    <div class="mc-search">
+                        <span class="mc-search-icon">🔍</span>
+                        <input type="text" id="searchInput" class="mc-search-input" placeholder="Search fields...">
                     </div>
-                    
-                    <!-- Bit Field Visualization -->
-                    <div id="bitFieldViz" class="sp-bitfield-viz" style="display: none;"></div>
-                    
-                    <div class="sp-section-body">
-                        <div class="sp-field-header">
-                            <div class="sp-field-header-main">
-                                <span class="sp-field-h-expand"></span>
-                                <span class="sp-field-h-type">Type</span>
-                                <span class="sp-field-h-name">Field Name</span>
-                                <span class="sp-field-h-meta">Size / Offset</span>
-                            </div>
-                            <div class="sp-field-header-values">
-                                <span class="sp-field-h-dec">DEC</span>
-                                <span class="sp-field-h-hex">HEX</span>
-                                <span class="sp-field-h-input">Value</span>
-                            </div>
-                        </div>
-                        <div id="fieldList" class="sp-field-list">
-                            ${hasStruct ? this._renderFieldList(this._currentStruct!.fields) : ''}
-                        </div>
-                    </div>
-                </section>
+                </div>
 
-                <!-- Export Button (Floating) -->
-                <div id="exportContainer" style="display: none; padding: var(--sp-sm) 0; text-align: right;">
-                    <button id="btnExportResults" class="sp-btn sp-btn-sm" title="Export Results">📤 Export</button>
+                <!-- Bit Field Visualization Card -->
+                <div id="bitmapCard" class="mc-bitmap-card">
+                    <div class="mc-bitmap-header">
+                        <div class="mc-bitmap-title">
+                            <span class="mc-bitmap-icon">📊</span>
+                            <span>Bit Field Visualization</span>
+                        </div>
+                        <span id="fullValueDisplay" class="mc-bitmap-full-value"></span>
+                    </div>
+                    <div class="mc-bitmap-body">
+                        <div id="bitfieldViz" class="mc-bitmap"></div>
+                        <div id="bitLegend" class="mc-bit-legend"></div>
+                    </div>
+                </div>
+
+                <!-- Fields Card -->
+                <div id="fieldsCard" class="mc-fields-card">
+                    <div class="mc-fields-header">
+                        <div class="mc-fields-title">
+                            <span class="mc-fields-icon">📋</span>
+                            <span>Parsed Fields</span>
+                        </div>
+                        <span id="fieldsCount" class="mc-fields-count">0</span>
+                    </div>
+                    <div id="fieldsList" class="mc-fields-list"></div>
+                    <div id="exportRow" class="mc-export-row" style="display: none;">
+                        <button id="btnExport" class="mc-btn mc-btn-primary mc-btn-sm">📤 Export Results</button>
+                    </div>
                 </div>
             </div>
 
             <script>
-                // Initialize current struct name from server-rendered value
+                const vscode = acquireVsCodeApi();
                 let currentStructName = '${structName.replace(/'/g, "\\'")}';
-                ${this._getJavaScriptCode()}
+                let currentFields = [];
+                let expandedNodes = new Set();
+
+                document.addEventListener('DOMContentLoaded', function() {
+                    setupEventListeners();
+                });
+
+                function setupEventListeners() {
+                    document.getElementById('btnParse')?.addEventListener('click', parseValue);
+                    document.getElementById('hexInput')?.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') parseValue();
+                    });
+                    document.getElementById('searchInput')?.addEventListener('input', (e) => {
+                        filterFields(e.target.value);
+                    });
+                    document.getElementById('btnCopyDef')?.addEventListener('click', () => {
+                        vscode.postMessage({ command: 'copy', text: '${structName}' });
+                    });
+                    document.getElementById('btnExport')?.addEventListener('click', () => {
+                        showExportMenu();
+                    });
+                    document.getElementById('fieldsList')?.addEventListener('click', handleFieldClick);
+                    document.getElementById('fieldsList')?.addEventListener('input', handleFieldInput);
+                }
+
+                function parseValue() {
+                    const hexValue = document.getElementById('hexInput')?.value?.trim();
+                    if (!hexValue) {
+                        vscode.postMessage({ command: 'alert', text: 'Please enter a hex value' });
+                        return;
+                    }
+                    if (!currentStructName) {
+                        vscode.postMessage({ command: 'alert', text: 'Please select a struct from sidebar' });
+                        return;
+                    }
+                    vscode.postMessage({ command: 'parse', hexValue, structName: currentStructName });
+                }
+
+                function filterFields(term) {
+                    const rows = document.querySelectorAll('.mc-field-row');
+                    const lowerTerm = term.toLowerCase();
+                    rows.forEach(row => {
+                        const name = row.getAttribute('data-name') || '';
+                        const type = row.getAttribute('data-type') || '';
+                        const match = name.toLowerCase().includes(lowerTerm) || type.toLowerCase().includes(lowerTerm);
+                        row.style.display = match ? '' : 'none';
+                    });
+                }
+
+                function handleFieldClick(e) {
+                    const expand = e.target.closest('.mc-field-expand');
+                    if (expand) {
+                        const fieldName = expand.getAttribute('data-field');
+                        const children = document.querySelector('.mc-field-children[data-parent="' + fieldName + '"]');
+                        if (children) {
+                            children.classList.toggle('expanded');
+                            expand.classList.toggle('expanded');
+                        }
+                    }
+                    const copyBtn = e.target.closest('.mc-field-copy');
+                    if (copyBtn) {
+                        const value = copyBtn.getAttribute('data-value');
+                        vscode.postMessage({ command: 'copy', text: value });
+                    }
+                }
+
+                function handleFieldInput(e) {
+                    if (e.target.classList.contains('mc-field-value-input')) {
+                        const fieldName = e.target.getAttribute('data-field');
+                        const bits = parseInt(e.target.getAttribute('data-bits'));
+                        const newValue = parseInt(e.target.value);
+                        if (isNaN(newValue)) return;
+                        const maxVal = (1 << bits) - 1;
+                        if (newValue < 0 || newValue > maxVal) {
+                            vscode.postMessage({ command: 'alert', text: 'Value out of range (0-' + maxVal + ')' });
+                            return;
+                        }
+                        vscode.postMessage({ command: 'updateField', fieldPath: [fieldName], newValue });
+                    }
+                }
+
+                function showExportMenu() {
+                    const formats = [
+                        { label: 'CSV', value: 'csv' },
+                        { label: 'JSON', value: 'json' },
+                        { label: 'Markdown', value: 'markdown' }
+                    ];
+                    const format = formats.find(f => confirm('Export as ' + f.label + '?'));
+                    if (format) {
+                        vscode.postMessage({ command: 'export', format: format.value });
+                    }
+                }
+
+                window.addEventListener('message', event => {
+                    const message = event.data;
+                    switch (message.command) {
+                        case 'setHexValue':
+                            const hexInput = document.getElementById('hexInput');
+                            if (hexInput) hexInput.value = message.hexValue;
+                            break;
+                        case 'selectStruct':
+                            currentStructName = message.structName;
+                            break;
+                        case 'parseResult':
+                            displayResults(message);
+                            if (message.actualHexValue) {
+                                const hexInput = document.getElementById('hexInput');
+                                if (hexInput) hexInput.value = message.actualHexValue;
+                            }
+                            break;
+                        case 'fieldUpdated':
+                            updateFieldDisplay(message);
+                            break;
+                    }
+                });
+
+                function displayResults(data) {
+                    currentFields = data.fields;
+                    if (data.error) {
+                        vscode.postMessage({ command: 'alert', text: data.error });
+                        return;
+                    }
+                    renderBitFieldVisualization(data.fields, data.binaryValue);
+                    renderFieldsList(data.fields);
+                    document.getElementById('bitmapCard').style.display = 'block';
+                    document.getElementById('fieldsCard').style.display = 'block';
+                    document.getElementById('exportRow').style.display = 'flex';
+                    document.getElementById('fullValueDisplay').textContent = data.actualHexValue || data.hexValue;
+                }
+
+                function renderBitFieldVisualization(fields, binaryValue) {
+                    const container = document.getElementById('bitfieldViz');
+                    const legend = document.getElementById('bitLegend');
+                    if (!container) return;
+
+                    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
+                    const colorMap = {};
+                    let colorIndex = 0;
+
+                    let html = '';
+                    const processedFields = [];
+
+                    function processFields(fields, startBit) {
+                        fields.forEach(field => {
+                            const typeClass = field.type === 'struct' ? 'struct' :
+                                             field.type === 'union' ? 'union' :
+                                             field.type === 'bool' ? 'bool' : 'uint';
+
+                            if (!colorMap[field.type]) {
+                                colorMap[field.type] = colors[colorIndex % colors.length];
+                                colorIndex++;
+                            }
+
+                            const bits = field.bits;
+                            const value = field.value || 0;
+                            const hexVal = field.hex || '0x' + value.toString(16).toUpperCase();
+
+                            processedFields.push({
+                                name: field.name,
+                                type: field.type,
+                                typeClass,
+                                bits,
+                                value,
+                                hex: hexVal,
+                                color: colorMap[field.type]
+                            });
+
+                            if (field.children && field.children.length > 0) {
+                                processFields(field.children, 0);
+                            }
+                        });
+                    }
+
+                    processFields(fields, 0);
+
+                    processedFields.forEach(field => {
+                        const widthPercent = Math.max(60, field.bits * 3);
+                        html += \`
+                            <div class="mc-bit-block \${field.typeClass}" title="\${field.name}: \${field.value} (\${field.hex})">
+                                <div class="mc-bit-block-bar" style="background: \${field.color}; min-width: \${widthPercent}px;">
+                                    \${field.bits >= 4 ? field.value.toString(2) : ''}
+                                </div>
+                                <div class="mc-bit-block-name">\${field.name}</div>
+                                <div class="mc-bit-block-value">\${field.hex} (\${field.bits}b)</div>
+                            </div>
+                        \`;
+                    });
+
+                    container.innerHTML = html;
+
+                    let legendHtml = '';
+                    Object.entries(colorMap).forEach(([type, color]) => {
+                        legendHtml += \`
+                            <div class="mc-bit-legend-item">
+                                <span class="mc-bit-legend-color" style="background: \${color}"></span>
+                                <span>\${type}</span>
+                            </div>
+                        \`;
+                    });
+                    if (legend) legend.innerHTML = legendHtml;
+                }
+
+                function renderFieldsList(fields) {
+                    const container = document.getElementById('fieldsList');
+                    const countEl = document.getElementById('fieldsCount');
+                    if (!container) return;
+
+                    let count = 0;
+                    let html = '';
+
+                    function renderFieldRow(field, level = 0) {
+                        const hasChildren = field.children && field.children.length > 0;
+                        const fieldId = field.name.replace(/[^a-zA-Z0-9]/g, '_');
+                        const typeClass = field.type === 'struct' ? 'struct' :
+                                        field.type === 'union' ? 'union' :
+                                        field.type === 'bool' ? 'bool' : 'uint';
+                        const maxVal = (1 << field.bits) - 1;
+
+                        count++;
+                        html += \`
+                            <div class="mc-field-row" data-name="\${field.name}" data-type="\${field.type}">
+                                <div class="mc-field-expand \${hasChildren ? '' : 'no-children'}" data-field="\${field.name}">
+                                    \${hasChildren ? '▶' : ''}
+                                </div>
+                                <span class="mc-field-icon \${typeClass}"></span>
+                                <span class="mc-field-name">\${field.name}</span>
+                                <span class="mc-field-type-badge \${typeClass}">\${field.type}</span>
+                                <input type="number" class="mc-field-value-input" data-field="\${field.name}" data-bits="\${field.bits}" min="0" max="\${maxVal}" value="\${field.value}">
+                                <span class="mc-field-hex">\${field.hex}</span>
+                                <span class="mc-field-binary">\${field.binary || ''}</span>
+                                <span class="mc-field-bits">\${field.bits}b</span>
+                                <button class="mc-field-copy" data-value="\${field.hex}">📋</button>
+                            </div>
+                        \`;
+
+                        if (hasChildren) {
+                            html += \`<div class="mc-field-children" data-parent="\${field.name}">\`;
+                            field.children.forEach(child => renderFieldRow(child, level + 1));
+                            html += \`</div>\`;
+                        }
+                    }
+
+                    fields.forEach(field => renderFieldRow(field));
+
+                    container.innerHTML = html;
+                    if (countEl) countEl.textContent = count;
+                }
+
+                function updateFieldDisplay(message) {
+                    const simpleFieldId = message.fieldPath[message.fieldPath.length - 1];
+                    const rows = document.querySelectorAll('.mc-field-row[data-name="' + simpleFieldId + '"]');
+                    rows.forEach(row => {
+                        const input = row.querySelector('.mc-field-value-input');
+                        const hex = row.querySelector('.mc-field-hex');
+                        if (input) input.value = message.newValue;
+                        if (hex) hex.textContent = message.newHex;
+                    });
+                    if (message.fullHexValue) {
+                        document.getElementById('fullValueDisplay').textContent = message.fullHexValue;
+                        const hexInput = document.getElementById('hexInput');
+                        if (hexInput) hexInput.value = message.fullHexValue;
+                    }
+                }
             </script>
         </body>
         </html>`;

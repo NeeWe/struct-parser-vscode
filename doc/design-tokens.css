@@ -1,546 +1,822 @@
 /**
- * Struct Parser VS Code 插件设计令牌
- * 
- * 使用方式:
- * 1. 在 WebView HTML 中引入此 CSS
- * 2. 使用 var(--sp-*) 变量
- * 3. 所有颜色自动适配 VS Code 主题
+ * Struct Parser VS Code 插件 - 现代卡片式设计系统
+ * Modern Card-Style Design System
  */
 
-/* ============================================
-   1. 基础变量
-   ============================================ */
-
 :root {
-  /* 基础单位 */
+  /* ============================================
+     1. 基础变量
+     ============================================ */
   --sp-unit: 4px;
-  
-  /* 间距系统 */
-  --sp-xs: calc(var(--sp-unit) * 1);   /* 4px */
-  --sp-sm: calc(var(--sp-unit) * 2);   /* 8px */
-  --sp-md: calc(var(--sp-unit) * 3);   /* 12px */
-  --sp-lg: calc(var(--sp-unit) * 4);   /* 16px */
-  --sp-xl: calc(var(--sp-unit) * 6);   /* 24px */
-  --sp-2xl: calc(var(--sp-unit) * 8);  /* 32px */
-  
-  /* 圆角 */
-  --sp-radius-sm: 4px;
-  --sp-radius-md: 6px;
-  --sp-radius-lg: 8px;
-  --sp-radius-xl: 12px;
+  --sp-xs: calc(var(--sp-unit) * 1);
+  --sp-sm: calc(var(--sp-unit) * 2);
+  --sp-md: calc(var(--sp-unit) * 3);
+  --sp-lg: calc(var(--sp-unit) * 4);
+  --sp-xl: calc(var(--sp-unit) * 6);
+  --sp-2xl: calc(var(--sp-unit) * 8);
+
+  /* 圆角 - 更圆润 */
+  --sp-radius-xs: 3px;
+  --sp-radius-sm: 6px;
+  --sp-radius-md: 10px;
+  --sp-radius-lg: 14px;
+  --sp-radius-xl: 20px;
   --sp-radius-full: 9999px;
-  
-  /* 阴影 */
-  --sp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
-  --sp-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.1);
-  --sp-shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.15);
-  --sp-shadow-xl: 0 8px 16px rgba(0, 0, 0, 0.2);
-  
+
+  /* 阴影 - 更立体 */
+  --sp-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --sp-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+  --sp-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --sp-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.16);
+  --sp-shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.2);
+  --sp-shadow-glow: 0 0 20px rgba(78, 201, 176, 0.3);
+
   /* 过渡 */
-  --sp-transition-fast: 0.1s ease;
-  --sp-transition-normal: 0.2s ease;
-  --sp-transition-slow: 0.3s ease;
-}
+  --sp-transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --sp-transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --sp-transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 
-/* ============================================
-   2. 类型颜色系统
-   ============================================ */
+  /* ============================================
+     2. 色彩系统
+     ============================================ */
 
-:root {
-  /* 字段类型标识色 */
-  --sp-type-struct: #4EC9B0;      /* 结构体 - 青绿色 */
-  --sp-type-union: #C586C0;       /* 联合体 - 紫色 */
-  --sp-type-uint: #9CDCFE;        /* 无符号整数 - 浅蓝 */
-  --sp-type-int: #4FC1FF;         /* 有符号整数 - 蓝色 */
-  --sp-type-bool: #569CD6;        /* 布尔 - 深蓝 */
-  --sp-type-enum: #B8D7A3;        /* 枚举 - 浅绿 */
-  --sp-type-array: #DCDCAA;       /* 数组 - 黄色 */
-  --sp-type-pointer: #9CDCFE;     /* 指针 - 浅蓝 */
-  
-  /* 类型背景色（低饱和度） */
-  --sp-type-struct-bg: rgba(78, 201, 176, 0.1);
-  --sp-type-union-bg: rgba(197, 134, 192, 0.1);
-  --sp-type-uint-bg: rgba(156, 220, 254, 0.1);
-}
+  /* 主色调 */
+  --sp-primary: #4EC9B0;
+  --sp-primary-hover: #3DB8A0;
+  --sp-primary-bg: rgba(78, 201, 176, 0.12);
+  --sp-primary-border: rgba(78, 201, 176, 0.3);
 
-/* ============================================
-   3. 状态颜色系统
-   ============================================ */
+  /* 次要色 */
+  --sp-secondary: #C586C0;
+  --sp-secondary-hover: #B575B0;
+  --sp-secondary-bg: rgba(197, 133, 192, 0.12);
 
-:root {
-  /* 功能状态色 */
+  /* 强调色 */
+  --sp-accent: #75BEFF;
+  --sp-accent-hover: #5AAEFF;
+  --sp-accent-bg: rgba(117, 190, 255, 0.12);
+
+  /* 功能色 */
   --sp-success: #4EC9B0;
   --sp-success-bg: rgba(78, 201, 176, 0.15);
-  --sp-success-border: rgba(78, 201, 176, 0.3);
-  
-  --sp-warning: #CCA700;
-  --sp-warning-bg: rgba(204, 167, 0, 0.15);
-  --sp-warning-border: rgba(204, 167, 0, 0.3);
-  
-  --sp-error: #F48771;
-  --sp-error-bg: rgba(244, 135, 113, 0.15);
-  --sp-error-border: rgba(244, 135, 113, 0.3);
-  
+  --sp-success-border: rgba(78, 201, 176, 0.4);
+
+  --sp-warning: #FFB347;
+  --sp-warning-bg: rgba(255, 179, 71, 0.15);
+  --sp-warning-border: rgba(255, 179, 71, 0.4);
+
+  --sp-error: #FF6B6B;
+  --sp-error-bg: rgba(255, 107, 107, 0.15);
+  --sp-error-border: rgba(255, 107, 107, 0.4);
+
   --sp-info: #75BEFF;
   --sp-info-bg: rgba(117, 190, 255, 0.15);
-  --sp-info-border: rgba(117, 190, 255, 0.3);
-  
-  --sp-muted: var(--vscode-descriptionForeground);
-  --sp-muted-bg: var(--vscode-panel-background);
+  --sp-info-border: rgba(117, 190, 255, 0.4);
+
+  /* 文字色 */
+  --sp-text-primary: var(--vscode-foreground);
+  --sp-text-secondary: var(--vscode-descriptionForeground);
+  --sp-text-muted: var(--vscode-textPreformat-foreground);
+  --sp-text-inverse: #ffffff;
+
+  /* ============================================
+     3. 类型颜色系统
+     ============================================ */
+
+  /* 类型标识色 - 更鲜明 */
+  --sp-type-struct: #4EC9B0;
+  --sp-type-union: #C586C0;
+  --sp-type-uint: #9CDCFE;
+  --sp-type-int: #4FC1FF;
+  --sp-type-bool: #569CD6;
+  --sp-type-enum: #B8D7A3;
+  --sp-type-array: #DCDCAA;
+  --sp-type-pointer: #9CDCFE;
+  --sp-type-float: #D16969;
+  --sp-type-char: #CE9178;
+
+  /* 类型背景 - 更柔和 */
+  --sp-type-struct-bg: rgba(78, 201, 176, 0.08);
+  --sp-type-union-bg: rgba(197, 134, 192, 0.08);
+  --sp-type-uint-bg: rgba(156, 220, 254, 0.08);
+  --sp-type-int-bg: rgba(79, 193, 255, 0.08);
+
+  /* ============================================
+     4. 位域可视化颜色
+     ============================================ */
+
+  /* 高对比度配色 */
+  --sp-bit-0: #FF6B6B;
+  --sp-bit-1: #4ECDC4;
+  --sp-bit-2: #45B7D1;
+  --sp-bit-3: #96CEB4;
+  --sp-bit-4: #FFEAA7;
+  --sp-bit-5: #DDA0DD;
+  --sp-bit-6: #98D8C8;
+  --sp-bit-7: #F7DC6F;
+
+  /* 位域背景 */
+  --sp-bit-bg-0: rgba(255, 107, 107, 0.25);
+  --sp-bit-bg-1: rgba(78, 205, 196, 0.25);
+  --sp-bit-bg-2: rgba(69, 183, 209, 0.25);
+  --sp-bit-bg-3: rgba(150, 206, 180, 0.25);
+  --sp-bit-bg-4: rgba(255, 234, 167, 0.25);
+  --sp-bit-bg-5: rgba(221, 160, 221, 0.25);
+  --sp-bit-bg-6: rgba(152, 216, 200, 0.25);
+  --sp-bit-bg-7: rgba(247, 220, 111, 0.25);
+
+  /* 位域边框 */
+  --sp-bit-border: rgba(255, 255, 255, 0.1);
 }
 
 /* ============================================
-   4. 位域可视化颜色
+   5. 卡片组件
    ============================================ */
 
-:root {
-  /* 位域图配色方案 - 高对比度 */
-  --sp-bit-0: #FF6B6B;   /* 珊瑚红 */
-  --sp-bit-1: #4ECDC4;   /* 青绿 */
-  --sp-bit-2: #45B7D1;   /* 天蓝 */
-  --sp-bit-3: #96CEB4;   /* 薄荷 */
-  --sp-bit-4: #FFEAA7;   /* 奶油黄 */
-  --sp-bit-5: #DDA0DD;   /* 梅红 */
-  --sp-bit-6: #98D8C8;   /* 海泡绿 */
-  --sp-bit-7: #F7DC6F;   /* 金黄 */
-  
-  /* 位域背景色 */
-  --sp-bit-bg-0: rgba(255, 107, 107, 0.2);
-  --sp-bit-bg-1: rgba(78, 205, 196, 0.2);
-  --sp-bit-bg-2: rgba(69, 183, 209, 0.2);
-  --sp-bit-bg-3: rgba(150, 206, 180, 0.2);
-  --sp-bit-bg-4: rgba(255, 234, 167, 0.2);
-  --sp-bit-bg-5: rgba(221, 160, 221, 0.2);
-  --sp-bit-bg-6: rgba(152, 216, 200, 0.2);
-  --sp-bit-bg-7: rgba(247, 220, 111, 0.2);
-}
-
-/* ============================================
-   5. 组件样式
-   ============================================ */
-
-/* 5.1 面板容器 */
-.sp-panel {
-  padding: var(--sp-lg);
-  background-color: var(--vscode-panel-background);
-  border-radius: var(--sp-radius-lg);
+.mc-card {
+  background: var(--vscode-panel-background);
   border: 1px solid var(--vscode-panel-border);
-}
-
-.sp-section {
-  margin-bottom: var(--sp-lg);
-  padding: var(--sp-lg);
-  background-color: var(--vscode-panel-background);
   border-radius: var(--sp-radius-lg);
-  border: 1px solid var(--vscode-panel-border);
   box-shadow: var(--sp-shadow-sm);
+  overflow: hidden;
+  transition: all var(--sp-transition-normal);
 }
 
-.sp-section-header {
+.mc-card:hover {
+  box-shadow: var(--sp-shadow-md);
+  border-color: var(--sp-primary-border);
+}
+
+.mc-card-header {
   display: flex;
   align-items: center;
-  gap: var(--sp-sm);
-  margin-bottom: var(--sp-md);
-  padding-bottom: var(--sp-sm);
+  justify-content: space-between;
+  padding: var(--sp-md) var(--sp-lg);
+  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
   border-bottom: 1px solid var(--vscode-panel-border);
 }
 
-.sp-section-title {
+.mc-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
   font-size: 14px;
   font-weight: 600;
-  color: var(--vscode-foreground);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  color: var(--sp-text-primary);
 }
 
-.sp-section-icon {
+.mc-card-icon {
   font-size: 16px;
+  color: var(--sp-primary);
 }
 
-/* 5.2 按钮 */
-.sp-btn {
+.mc-card-body {
+  padding: var(--sp-lg);
+}
+
+.mc-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-sm);
+  padding: var(--sp-md) var(--sp-lg);
+  background: var(--vscode-panel-background);
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+/* 卡片变体 */
+.mc-card-accent {
+  border-left: 3px solid var(--sp-primary);
+}
+
+.mc-card-highlight {
+  box-shadow: var(--sp-shadow-glow);
+}
+
+/* ============================================
+   6. 按钮组件
+   ============================================ */
+
+.mc-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--sp-sm);
-  padding: var(--sp-sm) var(--sp-md);
+  padding: var(--sp-sm) var(--sp-lg);
   font-size: 13px;
   font-weight: 500;
+  font-family: inherit;
   border: none;
+  border-radius: var(--sp-radius-md);
+  cursor: pointer;
+  transition: all var(--sp-transition-fast);
+  white-space: nowrap;
+}
+
+.mc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mc-btn-primary {
+  background: linear-gradient(135deg, var(--sp-primary) 0%, var(--sp-primary-hover) 100%);
+  color: var(--sp-text-inverse);
+  box-shadow: 0 2px 8px rgba(78, 201, 176, 0.3);
+}
+
+.mc-btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(78, 201, 176, 0.4);
+}
+
+.mc-btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.mc-btn-secondary {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--vscode-panel-border);
+}
+
+.mc-btn-secondary:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.mc-btn-ghost {
+  background: transparent;
+  color: var(--sp-text-secondary);
+}
+
+.mc-btn-ghost:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--sp-text-primary);
+}
+
+.mc-btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--sp-radius-md);
+  background: transparent;
+  color: var(--sp-text-secondary);
+}
+
+.mc-btn-icon:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--sp-text-primary);
+}
+
+.mc-btn-lg {
+  padding: var(--sp-md) var(--sp-xl);
+  font-size: 14px;
+  border-radius: var(--radius-lg);
+}
+
+.mc-btn-sm {
+  padding: var(--sp-xs) var(--sp-md);
+  font-size: 12px;
+  border-radius: var(--sp-radius-sm);
+}
+
+/* ============================================
+   7. 输入组件
+   ============================================ */
+
+.mc-input-group {
+  display: flex;
+  align-items: stretch;
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: var(--sp-radius-md);
+  overflow: hidden;
+  transition: all var(--sp-transition-fast);
+}
+
+.mc-input-group:focus-within {
+  border-color: var(--sp-primary);
+  box-shadow: 0 0 0 3px var(--sp-primary-bg);
+}
+
+.mc-input-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-md);
+  background: var(--vscode-panel-background);
+  color: var(--sp-text-muted);
+  font-family: var(--vscode-editor-font-family);
+  font-weight: 600;
+  border-right: 1px solid var(--vscode-input-border);
+}
+
+.mc-input {
+  flex: 1;
+  padding: var(--sp-sm) var(--sp-md);
+  background: transparent;
+  border: none;
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-editor-font-family);
+  font-size: 14px;
+}
+
+.mc-input:focus {
+  outline: none;
+}
+
+.mc-input::placeholder {
+  color: var(--sp-text-muted);
+}
+
+.mc-input-suffix {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-sm);
+  background: transparent;
+  border-left: 1px solid var(--vscode-input-border);
+}
+
+.mc-select {
+  width: 100%;
+  padding: var(--sp-sm) var(--sp-md);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: var(--sp-radius-md);
+  color: var(--vscode-input-foreground);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--sp-transition-fast);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888888' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.mc-select:focus {
+  outline: none;
+  border-color: var(--sp-primary);
+  box-shadow: 0 0 0 3px var(--sp-primary-bg);
+}
+
+/* ============================================
+   8. 标签和徽章
+   ============================================ */
+
+.mc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  padding: var(--sp-xs) var(--sp-sm);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--sp-radius-full);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mc-badge-success {
+  background: var(--sp-success-bg);
+  color: var(--sp-success);
+  border: 1px solid var(--sp-success-border);
+}
+
+.mc-badge-warning {
+  background: var(--sp-warning-bg);
+  color: var(--sp-warning);
+  border: 1px solid var(--sp-warning-border);
+}
+
+.mc-badge-error {
+  background: var(--sp-error-bg);
+  color: var(--sp-error);
+  border: 1px solid var(--sp-error-border);
+}
+
+.mc-badge-info {
+  background: var(--sp-info-bg);
+  color: var(--sp-info);
+  border: 1px solid var(--sp-info-border);
+}
+
+.mc-badge-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--sp-primary);
+  color: var(--sp-text-inverse);
+  border-radius: var(--sp-radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 类型标签 */
+.mc-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--sp-radius-sm);
+  font-family: var(--vscode-editor-font-family);
+}
+
+.mc-type-badge.struct {
+  background: var(--sp-type-struct-bg);
+  color: var(--sp-type-struct);
+}
+
+.mc-type-badge.union {
+  background: var(--sp-type-union-bg);
+  color: var(--sp-type-union);
+}
+
+.mc-type-badge.uint,
+.mc-type-badge.int {
+  background: var(--sp-type-uint-bg);
+  color: var(--sp-type-uint);
+}
+
+.mc-type-badge.bool {
+  background: rgba(86, 156, 214, 0.1);
+  color: var(--sp-type-bool);
+}
+
+/* ============================================
+   9. 搜索组件
+   ============================================ */
+
+.mc-search {
+  position: relative;
+  width: 100%;
+}
+
+.mc-search-icon {
+  position: absolute;
+  left: var(--sp-md);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--sp-text-muted);
+  pointer-events: none;
+  font-size: 14px;
+}
+
+.mc-search-input {
+  width: 100%;
+  padding: var(--sp-sm) var(--sp-md);
+  padding-left: 36px;
+  padding-right: 36px;
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: var(--sp-radius-md);
+  color: var(--vscode-input-foreground);
+  font-size: 13px;
+  transition: all var(--sp-transition-fast);
+}
+
+.mc-search-input:focus {
+  outline: none;
+  border-color: var(--sp-primary);
+  box-shadow: 0 0 0 3px var(--sp-primary-bg);
+}
+
+.mc-search-clear {
+  position: absolute;
+  right: var(--sp-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--sp-radius-sm);
+  color: var(--sp-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--sp-transition-fast);
+}
+
+.mc-search-input:not(:placeholder-shown) + .mc-search-clear {
+  opacity: 1;
+}
+
+.mc-search-clear:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--sp-text-primary);
+}
+
+/* ============================================
+   10. 列表组件
+   ============================================ */
+
+.mc-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+}
+
+.mc-list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  padding: var(--sp-sm) var(--sp-md);
+  background: transparent;
   border-radius: var(--sp-radius-md);
   cursor: pointer;
   transition: all var(--sp-transition-fast);
 }
 
-.sp-btn-primary {
-  background: linear-gradient(135deg, var(--vscode-button-background) 0%, var(--vscode-button-hoverBackground) 100%);
-  color: var(--vscode-button-foreground);
+.mc-list-item:hover {
+  background: var(--vscode-list-hoverBackground);
 }
 
-.sp-btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: var(--sp-shadow-md);
+.mc-list-item.selected {
+  background: var(--vscode-list-activeSelectionBackground);
 }
 
-.sp-btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.mc-list-item-icon {
+  font-size: 16px;
+  color: var(--sp-text-muted);
 }
 
-.sp-btn-secondary {
-  background-color: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-}
-
-.sp-btn-icon {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background: transparent;
-  color: var(--vscode-foreground);
-  border-radius: var(--sp-radius-sm);
-}
-
-.sp-btn-icon:hover {
-  background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-/* 5.3 输入框 */
-.sp-input-group {
-  display: flex;
-  align-items: center;
-  background-color: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border);
-  border-radius: var(--sp-radius-md);
-  overflow: hidden;
-}
-
-.sp-input-prefix {
-  padding: var(--sp-sm) var(--sp-md);
-  background-color: var(--vscode-panel-background);
-  color: var(--vscode-descriptionForeground);
-  font-family: var(--vscode-editor-font-family);
-  font-weight: 500;
-  border-right: 1px solid var(--vscode-input-border);
-}
-
-.sp-input {
+.mc-list-item-content {
   flex: 1;
-  padding: var(--sp-sm) var(--sp-md);
-  border: none;
-  background: transparent;
-  color: var(--vscode-input-foreground);
-  font-family: var(--vscode-editor-font-family);
-  font-size: 14px;
+  min-width: 0;
 }
 
-.sp-input:focus {
-  outline: none;
-}
-
-.sp-select {
-  width: 100%;
-  padding: var(--sp-sm) var(--sp-md);
-  border: 1px solid var(--vscode-input-border);
-  border-radius: var(--sp-radius-md);
-  background-color: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
+.mc-list-item-title {
   font-size: 13px;
-  cursor: pointer;
+  font-weight: 500;
+  color: var(--sp-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* 5.4 状态标签 */
-.sp-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-xs);
-  padding: var(--sp-xs) var(--sp-sm);
-  font-size: 12px;
-  border-radius: var(--sp-radius-sm);
+.mc-list-item-subtitle {
+  font-size: 11px;
+  color: var(--sp-text-secondary);
+  margin-top: 2px;
 }
 
-.sp-badge-success {
-  color: var(--sp-success);
-  background-color: var(--sp-success-bg);
-}
+/* ============================================
+   11. 字段行组件
+   ============================================ */
 
-.sp-badge-warning {
-  color: var(--sp-warning);
-  background-color: var(--sp-warning-bg);
-}
-
-.sp-badge-error {
-  color: var(--sp-error);
-  background-color: var(--sp-error-bg);
-}
-
-.sp-badge-info {
-  color: var(--sp-info);
-  background-color: var(--sp-info-bg);
-}
-
-/* 5.5 字段行 */
-.sp-field-row {
+.mc-field-row {
   display: flex;
   align-items: center;
-  gap: var(--sp-sm);
+  gap: var(--sp-md);
   padding: var(--sp-sm) var(--sp-md);
-  border-radius: var(--sp-radius-sm);
-  transition: background-color var(--sp-transition-fast);
+  background: var(--vscode-panel-background);
+  border: 1px solid transparent;
+  border-radius: var(--sp-radius-md);
+  transition: all var(--sp-transition-fast);
 }
 
-.sp-field-row:hover {
-  background-color: var(--vscode-list-hoverBackground);
+.mc-field-row:hover {
+  background: var(--vscode-list-hoverBackground);
+  border-color: var(--vscode-panel-border);
 }
 
-.sp-field-row.selected {
-  background-color: var(--vscode-list-activeSelectionBackground);
+.mc-field-row.selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  border-color: var(--sp-primary-border);
 }
 
-.sp-expand-icon {
-  width: 16px;
-  height: 16px;
+.mc-field-expand {
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
+  color: var(--sp-text-muted);
   cursor: pointer;
   transition: transform var(--sp-transition-fast);
 }
 
-.sp-expand-icon.expanded {
+.mc-field-expand.expanded {
   transform: rotate(90deg);
 }
 
-.sp-type-icon {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
+.mc-field-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sp-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.sp-type-icon.struct { background-color: var(--sp-type-struct); }
-.sp-type-icon.union { background-color: var(--sp-type-union); }
-.sp-type-icon.uint { background-color: var(--sp-type-uint); }
-.sp-type-icon.bool { background-color: var(--sp-type-bool); }
-
-.sp-field-name {
-  font-weight: 600;
-  min-width: 120px;
-  color: var(--vscode-foreground);
-}
-
-.sp-field-type {
-  font-size: 12px;
-  min-width: 70px;
-  color: var(--vscode-descriptionForeground);
-}
-
-.sp-field-type.struct { color: var(--sp-type-struct); }
-.sp-field-type.union { color: var(--sp-type-union); }
-
-.sp-field-input {
+.mc-field-value-input {
   width: 70px;
-  padding: 4px 8px;
+  padding: var(--sp-xs) var(--sp-sm);
+  background: var(--vscode-input-background);
   border: 1px solid var(--vscode-input-border);
   border-radius: var(--sp-radius-sm);
-  background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
   font-family: var(--vscode-editor-font-family);
   font-size: 13px;
   text-align: right;
+  transition: all var(--sp-transition-fast);
 }
 
-.sp-field-input:focus {
+.mc-field-value-input:focus {
   outline: none;
-  border-color: var(--vscode-focusBorder);
+  border-color: var(--sp-primary);
+  box-shadow: 0 0 0 3px var(--sp-primary-bg);
 }
 
-.sp-field-hex {
+.mc-field-hex {
+  min-width: 70px;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 13px;
+  color: var(--sp-accent);
+  text-align: right;
+}
+
+.mc-field-binary {
+  min-width: 100px;
   font-family: var(--vscode-editor-font-family);
   font-size: 12px;
-  color: var(--vscode-numberLiteral-foreground);
-  min-width: 60px;
+  color: var(--sp-text-muted);
+  letter-spacing: 0.5px;
+  text-align: right;
 }
 
-.sp-field-binary {
-  font-family: var(--vscode-editor-font-family);
+.mc-field-bits {
+  min-width: 50px;
   font-size: 11px;
-  color: var(--vscode-textPreformat-foreground);
-  letter-spacing: 1px;
+  color: var(--sp-text-muted);
+  text-align: right;
 }
 
-.sp-field-bits {
-  font-size: 11px;
-  color: var(--vscode-descriptionForeground);
+/* ============================================
+   12. 位域可视化
+   ============================================ */
+
+.mc-bitmap-container {
+  padding: var(--sp-lg);
+  background: var(--vscode-panel-background);
+  border-radius: var(--sp-radius-lg);
+  border: 1px solid var(--vscode-panel-border);
 }
 
-/* 5.6 树形结构 */
-.sp-tree {
-  padding-left: var(--sp-md);
-}
-
-.sp-tree-node {
-  margin-left: var(--sp-md);
-}
-
-.sp-tree-children {
-  display: none;
-  margin-left: var(--sp-lg);
-}
-
-.sp-tree-children.expanded {
-  display: block;
-}
-
-/* 5.7 位域图 */
-.sp-bitmap {
-  display: grid;
-  grid-template-columns: repeat(32, 1fr);
-  gap: 1px;
+.mc-bitmap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
   padding: var(--sp-md);
-  background-color: var(--vscode-panel-background);
+  background: rgba(0, 0, 0, 0.2);
   border-radius: var(--sp-radius-md);
 }
 
-.sp-bit {
-  aspect-ratio: 1;
+.mc-bit-block {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  font-family: var(--vscode-editor-font-family);
-  border-radius: 2px;
+  gap: 4px;
+  padding: var(--sp-xs);
+  border-radius: var(--sp-radius-sm);
+  transition: all var(--sp-transition-fast);
   cursor: pointer;
-  transition: transform var(--sp-transition-fast);
+  position: relative;
 }
 
-.sp-bit:hover {
-  transform: scale(1.2);
+.mc-bit-block:hover {
+  transform: translateY(-2px);
   z-index: 1;
 }
 
-/* 5.8 工具栏 */
-.sp-toolbar {
+.mc-bit-block-labels {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.mc-bit-block-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--sp-text-primary);
+  max-width: 80px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mc-bit-block-value {
+  font-size: 9px;
+  color: var(--sp-text-secondary);
+}
+
+.mc-bit-block-bar {
+  height: 32px;
+  min-width: 8px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.6);
+  transition: all var(--sp-transition-fast);
+}
+
+.mc-bit-block-bar:hover {
+  filter: brightness(1.1);
+}
+
+.mc-bit-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-sm);
+  margin-top: var(--sp-md);
+  padding-top: var(--sp-md);
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+.mc-bit-legend-item {
   display: flex;
   align-items: center;
   gap: var(--sp-xs);
-  padding: var(--sp-sm);
-  background-color: var(--vscode-panel-background);
-  border-bottom: 1px solid var(--vscode-panel-border);
+  font-size: 11px;
+  color: var(--sp-text-secondary);
 }
 
-.sp-toolbar-group {
+.mc-bit-legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+/* ============================================
+   13. 布局
+   ============================================ */
+
+.mc-layout {
   display: flex;
-  align-items: center;
-  gap: var(--sp-xs);
+  flex-direction: column;
+  min-height: 100vh;
+  padding: var(--sp-lg);
+  gap: var(--sp-lg);
+  background: transparent;
 }
 
-.sp-toolbar-separator {
-  width: 1px;
-  height: 20px;
-  background-color: var(--vscode-panel-border);
-  margin: 0 var(--sp-sm);
-}
-
-/* 5.9 搜索框 */
-.sp-search {
-  position: relative;
+.mc-layout-row {
   display: flex;
-  align-items: center;
+  gap: var(--sp-lg);
 }
 
-.sp-search-input {
-  width: 100%;
-  padding: var(--sp-sm) var(--sp-md);
-  padding-left: 32px;
-  border: 1px solid var(--vscode-input-border);
-  border-radius: var(--sp-radius-md);
-  background-color: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  font-size: 13px;
+.mc-layout-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-lg);
+  flex: 1;
 }
 
-.sp-search-icon {
-  position: absolute;
-  left: var(--sp-sm);
-  color: var(--vscode-descriptionForeground);
+.mc-layout-main {
+  flex: 1;
+  min-width: 0;
 }
 
-/* 5.10 Toast 提示 */
-.sp-toast {
-  position: fixed;
-  bottom: var(--sp-lg);
-  right: var(--sp-lg);
-  padding: var(--sp-sm) var(--sp-md);
-  background-color: var(--vscode-notifications-background);
-  color: var(--vscode-notifications-foreground);
-  border-radius: var(--sp-radius-md);
-  box-shadow: var(--sp-shadow-lg);
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+.mc-layout-sidebar {
+  width: 280px;
+  flex-shrink: 0;
 }
 
 /* ============================================
-   6. 布局工具
+   14. 动画
    ============================================ */
 
-.sp-flex { display: flex; }
-.sp-flex-col { flex-direction: column; }
-.sp-items-center { align-items: center; }
-.sp-justify-between { justify-content: space-between; }
-.sp-gap-xs { gap: var(--sp-xs); }
-.sp-gap-sm { gap: var(--sp-sm); }
-.sp-gap-md { gap: var(--sp-md); }
-.sp-gap-lg { gap: var(--sp-lg); }
-
-.sp-mb-xs { margin-bottom: var(--sp-xs); }
-.sp-mb-sm { margin-bottom: var(--sp-sm); }
-.sp-mb-md { margin-bottom: var(--sp-md); }
-.sp-mb-lg { margin-bottom: var(--sp-lg); }
-
-.sp-p-xs { padding: var(--sp-xs); }
-.sp-p-sm { padding: var(--sp-sm); }
-.sp-p-md { padding: var(--sp-md); }
-.sp-p-lg { padding: var(--sp-lg); }
-
-/* ============================================
-   7. 响应式适配
-   ============================================ */
-
-@media (max-width: 400px) {
-  .sp-field-binary {
-    display: none;
-  }
-  
-  .sp-field-name {
-    min-width: 80px;
-  }
-  
-  .sp-field-type {
-    min-width: 50px;
-  }
-}
-
-/* ============================================
-   8. 动画关键帧
-   ============================================ */
-
-@keyframes fadeIn {
+@keyframes mc-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes slideDown {
+@keyframes mc-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mc-slide-down {
   from {
     opacity: 0;
     transform: translateY(-10px);
@@ -551,26 +827,130 @@
   }
 }
 
-@keyframes pulse {
+@keyframes mc-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes mc-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.6; }
 }
 
-.sp-animate-fadeIn {
-  animation: fadeIn 0.3s ease;
+.mc-animate-fade-in {
+  animation: mc-fade-in var(--sp-transition-normal) ease;
 }
 
-.sp-animate-slideDown {
-  animation: slideDown 0.3s ease;
+.mc-animate-slide-up {
+  animation: mc-slide-up var(--sp-transition-normal) ease;
 }
 
-.sp-animate-pulse {
-  animation: pulse 2s infinite;
+.mc-animate-scale-in {
+  animation: mc-scale-in var(--sp-transition-normal) ease;
 }
 
 /* ============================================
-   9. 深色/浅色主题适配
+   15. 工具类
    ============================================ */
 
-/* 自动适配 VS Code 主题，无需额外定义 */
-/* 所有颜色均使用 var(--vscode-*) 变量 */
+.mc-divider {
+  height: 1px;
+  background: var(--vscode-panel-border);
+  margin: var(--sp-md) 0;
+}
+
+.mc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-2xl);
+  text-align: center;
+  color: var(--sp-text-muted);
+}
+
+.mc-empty-icon {
+  font-size: 48px;
+  margin-bottom: var(--sp-md);
+  opacity: 0.5;
+}
+
+.mc-empty-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--sp-text-secondary);
+  margin-bottom: var(--sp-xs);
+}
+
+.mc-empty-text {
+  font-size: 12px;
+  color: var(--sp-text-muted);
+}
+
+.mc-mono {
+  font-family: var(--vscode-editor-font-family);
+}
+
+.mc-text-right {
+  text-align: right;
+}
+
+.mc-text-center {
+  text-align: center;
+}
+
+.mc-text-primary {
+  color: var(--sp-text-primary);
+}
+
+.mc-text-secondary {
+  color: var(--sp-text-secondary);
+}
+
+.mc-text-muted {
+  color: var(--sp-text-muted);
+}
+
+.mc-text-success {
+  color: var(--sp-success);
+}
+
+.mc-text-warning {
+  color: var(--sp-warning);
+}
+
+.mc-text-error {
+  color: var(--sp-error);
+}
+
+.mc-text-accent {
+  color: var(--sp-accent);
+}
+
+.mc-font-bold {
+  font-weight: 600;
+}
+
+.mc-font-mono {
+  font-family: var(--vscode-editor-font-family);
+}
+
+.mc-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mc-relative {
+  position: relative;
+}
+
+.mc-overflow-hidden {
+  overflow: hidden;
+}
