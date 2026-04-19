@@ -509,6 +509,13 @@ export class StructParserPanel {
         this._structData = structData;
     }
 
+    public setHideZero(hideZero: boolean) {
+        this._panel.webview.postMessage({
+            command: 'setHideZero',
+            hideZero
+        });
+    }
+
     private _renderFieldList(fields: StructField[], level: number = 0): string {
         let html = '';
         fields.forEach(field => {
@@ -905,6 +912,37 @@ export class StructParserPanel {
                     font-weight: 600;
                 }
 
+                .mc-hide-zero-btn {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 5px;
+                    padding: 4px 10px;
+                    font-size: 11px;
+                    font-weight: 500;
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius-sm);
+                    cursor: pointer;
+                    transition: all var(--transition);
+                    background: transparent;
+                    color: var(--text-secondary);
+                    font-family: inherit;
+                }
+
+                .mc-hide-zero-btn:hover {
+                    background: var(--hover-bg);
+                    color: var(--text-primary);
+                }
+
+                .mc-hide-zero-btn.active {
+                    background: rgba(78, 201, 176, 0.15);
+                    color: var(--primary);
+                    border-color: var(--primary-border);
+                }
+
+                .mc-tree-node.zero-hidden {
+                    display: none;
+                }
+
                 /* Search */
                 .mc-search-card {
                     background: var(--panel-bg);
@@ -1262,7 +1300,10 @@ export class StructParserPanel {
                             <span class="mc-fields-icon">📋</span>
                             <span>Parsed Fields</span>
                         </div>
-                        <span id="fieldsCount" class="mc-fields-count">0</span>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <button id="btnHideZeroLocal" class="mc-hide-zero-btn" title="Hide fields with zero value in this tab">🔍 Hide Zero</button>
+                            <span id="fieldsCount" class="mc-fields-count">0</span>
+                        </div>
                     </div>
                     <div id="fieldsList" class="mc-fields-list"></div>
 
@@ -1274,6 +1315,7 @@ export class StructParserPanel {
                 let currentStructName = '${structName.replace(/'/g, "\\'")}';
                 let currentFields = [];
                 let expandedNodes = new Set();
+                let hideZero = false;
 
                 document.addEventListener('DOMContentLoaded', function() {
                     setupEventListeners();
@@ -1289,6 +1331,13 @@ export class StructParserPanel {
                     });
                     document.getElementById('btnCopyDef')?.addEventListener('click', () => {
                         vscode.postMessage({ command: 'copy', text: '${structName}' });
+                    });
+
+                    document.getElementById('btnHideZeroLocal')?.addEventListener('click', () => {
+                        hideZero = !hideZero;
+                        const btn = document.getElementById('btnHideZeroLocal');
+                        btn.classList.toggle('active', hideZero);
+                        applyHideZero();
                     });
 
                     document.getElementById('fieldsList')?.addEventListener('click', handleFieldClick);
@@ -1376,8 +1425,38 @@ export class StructParserPanel {
                                 if (hexInput) hexInput.value = message.actualHexValue;
                             }
                             break;
+                        case 'setHideZero':
+                            hideZero = message.hideZero;
+                            const btn = document.getElementById('btnHideZeroLocal');
+                            if (btn) btn.classList.toggle('active', hideZero);
+                            applyHideZero();
+                            break;
                     }
                 });
+
+                function applyHideZero() {
+                    // 只对叶子节点（没有 mc-tree-children 子元素的节点）过滤零值
+                    const nodes = document.querySelectorAll('.mc-tree-node[data-value]');
+                    nodes.forEach(node => {
+                        const hasChildren = node.querySelector('.mc-tree-children') !== null;
+                        if (hasChildren) {
+                            node.classList.remove('zero-hidden');
+                            return;
+                        }
+                        const val = parseInt(node.getAttribute('data-value') || '0', 10);
+                        if (hideZero && val === 0) {
+                            node.classList.add('zero-hidden');
+                        } else {
+                            node.classList.remove('zero-hidden');
+                        }
+                    });
+                    // update visible count
+                    const countEl = document.getElementById('fieldsCount');
+                    if (countEl) {
+                        const visible = document.querySelectorAll('.mc-tree-node[data-value]:not(.zero-hidden)').length;
+                        countEl.textContent = visible;
+                    }
+                }
 
                 function displayResults(data) {
                     currentFields = data.fields;
@@ -1408,7 +1487,7 @@ export class StructParserPanel {
 
                         count++;
                         html += \`
-                            <div class="mc-tree-node">
+                            <div class="mc-tree-node" data-value="\${field.value}">
                                 <div class="mc-tree-node-header" data-name="\${field.name}" data-type="\${field.type}">
                                     <div class="mc-tree-expand \${hasChildren ? '' : 'no-children'}" data-field="\${field.name}">
                                         \${hasChildren ? '▶' : ''}
@@ -1438,6 +1517,7 @@ export class StructParserPanel {
 
                     container.innerHTML = html;
                     if (countEl) countEl.textContent = count;
+                    applyHideZero();
                 }
 
             </script>

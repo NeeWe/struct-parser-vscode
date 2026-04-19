@@ -48,6 +48,13 @@ export function activate(context: vscode.ExtensionContext) {
         panel.showStructDefinition(struct);
     });
 
+    // Broadcast global hide-zero toggle to all open panels
+    structSelectorProvider.onHideZeroChanged((hideZero) => {
+        StructParserPanel.panels.forEach(panel => {
+            panel.setHideZero(hideZero);
+        });
+    });
+
     context.subscriptions.push(
         openViewerCommand, 
         parseFromHexCommand, 

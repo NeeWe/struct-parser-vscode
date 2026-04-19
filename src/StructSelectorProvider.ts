@@ -31,6 +31,10 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     private _onStructSelected: vscode.EventEmitter<StructDef> = new vscode.EventEmitter<StructDef>();
     public readonly onStructSelected: vscode.Event<StructDef> = this._onStructSelected.event;
 
+    private _hideZero: boolean = false;
+    private _onHideZeroChanged: vscode.EventEmitter<boolean> = new vscode.EventEmitter<boolean>();
+    public readonly onHideZeroChanged: vscode.Event<boolean> = this._onHideZeroChanged.event;
+
     constructor(extensionUri: vscode.Uri) {
         this._extensionUri = extensionUri;
         this._loadStructData();
@@ -64,6 +68,10 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 case 'refresh':
                     this._loadStructData();
                     this._updateWebview();
+                    break;
+                case 'toggleHideZero':
+                    this._hideZero = message.hideZero;
+                    this._onHideZeroChanged.fire(this._hideZero);
                     break;
             }
         });
@@ -309,6 +317,23 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 .ss-btn-secondary:hover {
                     background: var(--hover-bg);
                     color: var(--text-primary);
+                }
+
+                .ss-btn-toggle {
+                    background: var(--panel-bg);
+                    color: var(--text-secondary);
+                    border: 1px solid var(--border);
+                }
+
+                .ss-btn-toggle:hover {
+                    background: var(--hover-bg);
+                    color: var(--text-primary);
+                }
+
+                .ss-btn-toggle.active {
+                    background: rgba(78, 201, 176, 0.15);
+                    color: var(--primary);
+                    border-color: var(--primary-border);
                 }
 
                 /* Search Card */
@@ -628,6 +653,12 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                             <span>Refresh</span>
                         </button>
                     </div>
+                    <div class="ss-toolbar" style="margin-top: 8px;">
+                        <button id="btnHideZero" class="ss-btn ss-btn-toggle" title="Hide fields with zero value globally">
+                            <span>🔍</span>
+                            <span>Hide Zero Fields</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="ss-search-card">
@@ -681,6 +712,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 const vscode = acquireVsCodeApi();
                 let allStructs = ${JSON.stringify(allStructs)};
                 let selectedStruct = null;
+                let hideZero = false;
 
                 document.getElementById('searchInput').addEventListener('input', (e) => {
                     const term = e.target.value.toLowerCase();
@@ -705,6 +737,13 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
                 document.getElementById('btnRefresh').addEventListener('click', () => {
                     vscode.postMessage({ command: 'refresh' });
+                });
+
+                document.getElementById('btnHideZero').addEventListener('click', () => {
+                    hideZero = !hideZero;
+                    const btn = document.getElementById('btnHideZero');
+                    btn.classList.toggle('active', hideZero);
+                    vscode.postMessage({ command: 'toggleHideZero', hideZero });
                 });
 
                 document.getElementById('structList').addEventListener('click', (e) => {
