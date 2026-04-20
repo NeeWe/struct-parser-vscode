@@ -684,7 +684,9 @@ export class StructParserPanel {
                 }
 
                 .tree-row {
-                    display: flex;
+                    display: grid;
+                    grid-template-columns: 1fr 80px 50px 50px 90px 70px;
+                    column-gap: 16px;
                     align-items: center;
                     padding: 5px 24px;
                     cursor: pointer;
@@ -701,17 +703,23 @@ export class StructParserPanel {
                     border-left-color: #4EC9B0;
                 }
 
+                .tree-name-group {
+                    display: flex;
+                    align-items: center;
+                    min-width: 0;
+                }
+
                 .tree-indent {
                     flex-shrink: 0;
                 }
 
                 .tree-expand {
-                    width: 16px;
-                    height: 16px;
+                    width: 18px;
+                    height: 18px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    font-size: 10px;
+                    font-size: 12px;
                     color: var(--vscode-descriptionForeground);
                     transition: transform 0.15s;
                     flex-shrink: 0;
@@ -730,8 +738,8 @@ export class StructParserPanel {
                     height: 8px;
                     border-radius: 50%;
                     flex-shrink: 0;
-                    margin-left: 8px;
-                    margin-right: 8px;
+                    margin-left: 6px;
+                    margin-right: 10px;
                 }
 
                 .tree-icon.struct { background: #4EC9B0; }
@@ -741,25 +749,22 @@ export class StructParserPanel {
                 .tree-icon.anon { background: #666; }
 
                 .tree-name {
-                    font-size: 13px;
+                    font-size: 14px;
                     color: var(--vscode-foreground);
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
-                    min-width: 60px;
                     flex: 1;
+                    min-width: 0;
                 }
 
                 .tree-type {
-                    font-size: 10px;
+                    font-size: 13px;
                     font-weight: 500;
-                    padding: 1px 6px;
-                    border-radius: 3px;
+                    padding: 2px 10px;
+                    border-radius: 4px;
                     text-align: center;
                     white-space: nowrap;
-                    width: 60px;
-                    flex-shrink: 0;
-                    margin-left: 8px;
                 }
 
                 .tree-type.struct {
@@ -789,44 +794,36 @@ export class StructParserPanel {
                 }
 
                 .tree-offset {
-                    font-size: 10px;
+                    font-size: 13px;
                     color: var(--vscode-descriptionForeground);
                     font-family: var(--vscode-editor-font-family);
                     text-align: right;
                     white-space: nowrap;
-                    width: 40px;
-                    flex-shrink: 0;
-                    margin-left: 8px;
                 }
 
                 .tree-bits {
-                    font-size: 10px;
+                    font-size: 13px;
                     color: var(--vscode-descriptionForeground);
                     font-family: var(--vscode-editor-font-family);
                     text-align: right;
                     white-space: nowrap;
-                    width: 40px;
-                    flex-shrink: 0;
-                    margin-left: 8px;
                 }
 
                 .tree-value {
-                    width: 70px;
-                    padding: 3px 8px;
+                    width: 100%;
+                    padding: 4px 10px;
                     background: var(--vscode-input-background);
                     border: 1px solid var(--vscode-input-border);
                     border-radius: 4px;
                     color: var(--vscode-foreground);
                     font-family: var(--vscode-editor-font-family);
-                    font-size: 12px;
+                    font-size: 13px;
                     font-weight: 500;
                     text-align: right;
                     outline: none;
                     transition: border-color 0.15s;
                     -moz-appearance: textfield;
                     appearance: textfield;
-                    flex-shrink: 0;
-                    margin-left: 8px;
                 }
 
                 .tree-value::-webkit-outer-spin-button,
@@ -840,26 +837,17 @@ export class StructParserPanel {
 
                 .tree-hex {
                     font-family: var(--vscode-editor-font-family);
-                    font-size: 12px;
+                    font-size: 13px;
                     color: #75BEFF;
                     text-align: right;
                     font-weight: 500;
                     white-space: nowrap;
-                    width: 60px;
-                    flex-shrink: 0;
-                    margin-left: 8px;
                 }
 
                 .tree-spacer-value {
-                    width: 70px;
-                    flex-shrink: 0;
-                    margin-left: 8px;
                 }
 
                 .tree-spacer-hex {
-                    width: 60px;
-                    flex-shrink: 0;
-                    margin-left: 8px;
                 }
 
                 .tree-children {
@@ -872,6 +860,57 @@ export class StructParserPanel {
 
                 .tree-node.zero-hidden {
                     display: none;
+                }
+
+                .tree-header {
+                    display: grid;
+                    grid-template-columns: 1fr 80px 50px 50px 90px 70px;
+                    column-gap: 16px;
+                    align-items: center;
+                    padding: 6px 24px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    background: var(--vscode-panel-background);
+                    position: sticky;
+                    top: 0;
+                    z-index: 1;
+                }
+
+                .tree-header .tree-name-group {
+                    display: flex;
+                    align-items: center;
+                    min-width: 0;
+                }
+
+                .tree-header .tree-name,
+                .tree-header .tree-type,
+                .tree-header .tree-offset,
+                .tree-header .tree-bits,
+                .tree-header .tree-spacer-value,
+                .tree-header .tree-spacer-hex {
+                    font-size: 11px;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    color: var(--vscode-descriptionForeground);
+                }
+
+                .tree-header .tree-type {
+                    background: none;
+                    text-align: center;
+                }
+
+                .tree-header .tree-offset,
+                .tree-header .tree-bits {
+                    text-align: right;
+                }
+
+                .tree-header .tree-spacer-value,
+                .tree-header .tree-spacer-hex {
+                    text-align: right;
+                }
+
+                .tree-header .tree-icon {
+                    background: none;
                 }
 
                 /* Animations */
@@ -936,6 +975,21 @@ export class StructParserPanel {
                             <span>Parsed Fields</span>
                             <span class="fields-count" id="fieldsCount">0</span>
                         </div>
+                    </div>
+
+                    <!-- Column Header -->
+                    <div class="tree-header">
+                        <div class="tree-name-group">
+                            <span class="tree-indent"></span>
+                            <span class="tree-expand leaf">\u25B6</span>
+                            <span class="tree-icon"></span>
+                            <span class="tree-name">Name</span>
+                        </div>
+                        <span class="tree-type">Type</span>
+                        <span class="tree-offset">Offset</span>
+                        <span class="tree-bits">Bits</span>
+                        <span class="tree-spacer-value">Value</span>
+                        <span class="tree-spacer-hex">Hex</span>
                     </div>
 
                     <!-- Fields Tree -->
@@ -1089,10 +1143,12 @@ export class StructParserPanel {
                         html += \`
                             <div class="tree-node" data-value="\${field.value}">
                                 <div class="tree-row">
-                                    <span class="tree-indent" style="padding-left: \${depth * 20}px"></span>
-                                    <span class="tree-expand \${hasChildren ? '' : 'leaf'}">\u25B6</span>
-                                    <span class="tree-icon \${iconClass}"></span>
-                                    <span class="tree-name">\${field.name}</span>
+                                    <div class="tree-name-group">
+                                        <span class="tree-indent" style="padding-left: \${depth * 20}px"></span>
+                                        <span class="tree-expand \${hasChildren ? '' : 'leaf'}">\u25B6</span>
+                                        <span class="tree-icon \${iconClass}"></span>
+                                        <span class="tree-name">\${field.name}</span>
+                                    </div>
                                     <span class="tree-type \${typeClass}">\${typeLabel}</span>
                                     <span class="tree-offset">@\${field.offset}</span>
                                     <span class="tree-bits">\${field.bits}b</span>
