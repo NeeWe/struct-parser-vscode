@@ -369,6 +369,8 @@ export class StructParserPanel {
         const structBits = this._currentStruct?.bits || 0;
         const structBytes = Math.ceil(structBits / 8);
         const isUnion = this._structData?.unions?.some(u => u.type === structName) ?? false;
+        const initialHexValue = this._currentParsedData?.hexValue || '';
+        const initialFieldsJson = this._currentParsedData ? JSON.stringify(this._currentParsedData.fields) : '[]';
 
         return `<!DOCTYPE html>
         <html lang="en">
@@ -922,7 +924,7 @@ export class StructParserPanel {
                         <div class="hex-row">
                             <div class="hex-input-group">
                                 <span class="hex-prefix">0x</span>
-                                <input type="text" class="hex-input" id="hexInput" placeholder="Enter hex value..." value="">
+                                <input type="text" class="hex-input" id="hexInput" placeholder="Enter hex value..." value="${initialHexValue}">
                             </div>
                             <button class="hex-apply-btn" id="btnParse">Parse</button>
                         </div>
@@ -944,7 +946,7 @@ export class StructParserPanel {
             <script>
                 const vscode = acquireVsCodeApi();
                 let currentStructName = '${structName.replace(/'/g, "\\'")}';
-                let currentFields = [];
+                let currentFields = ${initialFieldsJson};
                 let hideZero = false;
 
                 document.getElementById('btnParse')?.addEventListener('click', parseValue);
@@ -954,6 +956,10 @@ export class StructParserPanel {
 
                 document.getElementById('fieldsTree')?.addEventListener('click', handleFieldClick);
                 document.getElementById('fieldsTree')?.addEventListener('change', handleFieldChange);
+
+                if (currentFields.length > 0) {
+                    renderFieldsTree(currentFields);
+                }
 
                 function parseValue() {
                     const hexValue = document.getElementById('hexInput')?.value?.trim();
