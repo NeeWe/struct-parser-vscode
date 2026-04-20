@@ -684,6 +684,42 @@ export class StructParserPanel {
                     color: var(--vscode-foreground);
                 }
 
+                .fields-search {
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                }
+
+                .fields-search svg {
+                    position: absolute;
+                    left: 7px;
+                    color: var(--vscode-descriptionForeground);
+                    pointer-events: none;
+                }
+
+                .fields-search-input {
+                    width: 140px;
+                    padding: 3px 8px 3px 26px;
+                    border: none;
+                    border-bottom: 1px solid transparent;
+                    border-radius: 0;
+                    background: transparent;
+                    color: var(--vscode-foreground);
+                    font-size: 11px;
+                    outline: none;
+                    transition: border-color 0.15s;
+                    font-family: var(--vscode-font-family);
+                }
+
+                .fields-search-input:focus {
+                    border-bottom-color: #4EC9B0;
+                }
+
+                .fields-search-input::placeholder {
+                    color: var(--vscode-descriptionForeground);
+                    opacity: 0.7;
+                }
+
                 .fields-tree {
                     flex: 1;
                     overflow-y: auto;
@@ -883,6 +919,10 @@ export class StructParserPanel {
                     display: none;
                 }
 
+                .tree-node.search-hidden {
+                    display: none;
+                }
+
                 .tree-header {
                     display: grid;
                     grid-template-columns: 1fr 80px 50px 50px 90px 70px;
@@ -996,6 +1036,10 @@ export class StructParserPanel {
                             <span>Parsed Fields</span>
                             <span class="fields-count" id="fieldsCount">0</span>
                         </div>
+                        <div class="fields-search">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z"/></svg>
+                            <input type="text" class="fields-search-input" id="fieldsSearchInput" placeholder="Filter fields...">
+                        </div>
                         <button class="collapse-toggle-btn" id="collapseToggleBtn" title="Collapse All">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h4v4H3V3zm0 6h4v4H3V9zm6-6h4v4H9V3zm0 6h4v4H9V9z" opacity="0.3"/><path d="M1.5 1h13a.5.5 0 0 1 0 1h-13a.5.5 0 0 1 0-1zm0 13h13a.5.5 0 0 1 0 1h-13a.5.5 0 0 1 0-1z"/></svg>
                             <span id="collapseToggleLabel">Collapse All</span>
@@ -1078,6 +1122,52 @@ export class StructParserPanel {
 
                 document.getElementById('fieldsTree')?.addEventListener('click', handleFieldClick);
                 document.getElementById('fieldsTree')?.addEventListener('change', handleFieldChange);
+
+                document.getElementById('fieldsSearchInput')?.addEventListener('input', (e) => {
+                    const term = e.target.value.trim().toLowerCase();
+                    const nodes = document.querySelectorAll('.tree-node[data-value]');
+                    if (!term) {
+                        nodes.forEach(n => n.classList.remove('search-hidden'));
+                        updateFieldsCount();
+                        return;
+                    }
+                    nodes.forEach(node => {
+                        const nameEl = node.querySelector(':scope > .tree-row .tree-name');
+                        const name = nameEl?.textContent?.toLowerCase() || '';
+                        if (name.includes(term)) {
+                            node.classList.remove('search-hidden');
+                            let parent = node.parentElement?.closest('.tree-node');
+                            while (parent) {
+                                parent.classList.remove('search-hidden');
+                                const expand = parent.querySelector(':scope > .tree-row .tree-expand');
+                                const children = parent.querySelector(':scope > .tree-children');
+                                if (expand && children) {
+                                    expand.classList.add('expanded');
+                                    children.classList.remove('collapsed');
+                                }
+                                parent = parent.parentElement?.closest('.tree-node');
+                            }
+                        } else {
+                            const hasMatchingChild = node.querySelector('.tree-node.search-hidden, .tree-node:not(.search-hidden)');
+                            const childMatches = [...(node.querySelectorAll('.tree-node') || [])].some(child => {
+                                const childName = child.querySelector(':scope > .tree-row .tree-name')?.textContent?.toLowerCase() || '';
+                                return childName.includes(term);
+                            });
+                            if (childMatches) {
+                                node.classList.remove('search-hidden');
+                                const expand = node.querySelector(':scope > .tree-row .tree-expand');
+                                const children = node.querySelector(':scope > .tree-children');
+                                if (expand && children) {
+                                    expand.classList.add('expanded');
+                                    children.classList.remove('collapsed');
+                                }
+                            } else {
+                                node.classList.add('search-hidden');
+                            }
+                        }
+                    });
+                    updateFieldsCount();
+                });
 
                 if (currentFields.length > 0) {
                     renderFieldsTree(currentFields);
