@@ -256,7 +256,7 @@ export class StructParserPanel {
         const targetField = findField(this._currentParsedData.fields, fieldPath);
         if (!targetField) return;
 
-        const maxValue = (1 << targetField.bits) - 1;
+        const maxValue = targetField.bits >= 32 ? 4294967295 : (1 << targetField.bits) - 1;
         if (newValue < 0 || newValue > maxValue) {
             vscode.window.showWarningMessage(`Value out of range (0-${maxValue})`);
             return;
@@ -1034,26 +1034,46 @@ export class StructParserPanel {
                     if (e.key === 'Enter') parseValue();
                 });
 
-                document.getElementById('collapseToggleBtn')?.addEventListener('click', () => {
-                    allCollapsed = !allCollapsed;
+                function expandAll() {
                     const expands = document.querySelectorAll('.tree-expand:not(.leaf)');
                     expands.forEach(el => {
                         const treeNode = el.closest('.tree-node');
                         const children = treeNode?.querySelector(':scope > .tree-children');
                         if (children) {
-                            if (allCollapsed) {
-                                el.classList.remove('expanded');
-                                children.classList.add('collapsed');
-                            } else {
-                                el.classList.add('expanded');
-                                children.classList.remove('collapsed');
-                            }
+                            el.classList.add('expanded');
+                            children.classList.remove('collapsed');
                         }
                     });
+                    allCollapsed = false;
                     const label = document.getElementById('collapseToggleLabel');
                     const btn = document.getElementById('collapseToggleBtn');
-                    if (label) label.textContent = allCollapsed ? 'Expand All' : 'Collapse All';
-                    if (btn) btn.title = allCollapsed ? 'Expand All' : 'Collapse All';
+                    if (label) label.textContent = 'Collapse All';
+                    if (btn) btn.title = 'Collapse All';
+                }
+
+                function collapseAll() {
+                    const expands = document.querySelectorAll('.tree-expand:not(.leaf)');
+                    expands.forEach(el => {
+                        const treeNode = el.closest('.tree-node');
+                        const children = treeNode?.querySelector(':scope > .tree-children');
+                        if (children) {
+                            el.classList.remove('expanded');
+                            children.classList.add('collapsed');
+                        }
+                    });
+                    allCollapsed = true;
+                    const label = document.getElementById('collapseToggleLabel');
+                    const btn = document.getElementById('collapseToggleBtn');
+                    if (label) label.textContent = 'Expand All';
+                    if (btn) btn.title = 'Expand All';
+                }
+
+                document.getElementById('collapseToggleBtn')?.addEventListener('click', () => {
+                    if (allCollapsed) {
+                        expandAll();
+                    } else {
+                        collapseAll();
+                    }
                 });
 
                 document.getElementById('fieldsTree')?.addEventListener('click', handleFieldClick);
@@ -1167,6 +1187,7 @@ export class StructParserPanel {
                         return;
                     }
                     renderFieldsTree(data.fields);
+                    expandAll();
                     document.getElementById('contentPanel').style.display = 'flex';
                     document.getElementById('emptyState').style.display = 'none';
                 }

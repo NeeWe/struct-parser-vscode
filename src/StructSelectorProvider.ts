@@ -177,7 +177,13 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
     private _getAllStructs(): StructDef[] {
         if (!this._structData) return [];
-        return [...this._structData.structs, ...this._structData.unions];
+        const all = [...this._structData.structs, ...this._structData.unions];
+        const seen = new Set<string>();
+        return all.filter(s => {
+            if (seen.has(s.type)) return false;
+            seen.add(s.type);
+            return true;
+        });
     }
 
     private _updateWebview() {
