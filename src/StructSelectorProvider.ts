@@ -479,8 +479,8 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     <button class="toolbar-btn" id="hideZeroBtn">
                         <span>\uD83D\uDC41</span> Hide Zero
                     </button>
-                    <button class="toolbar-btn" id="collapseAllBtn">
-                        <span>\u229F</span> Collapse All
+                    <button class="toolbar-btn" id="importJsonBtn">
+                        <span>\uD83D\uDCE4</span> Import
                     </button>
                 </div>
 
@@ -532,8 +532,8 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     vscode.postMessage({ command: 'toggleHideZero', hideZero });
                 });
 
-                document.getElementById('collapseAllBtn').addEventListener('click', () => {
-                    vscode.postMessage({ command: 'refresh' });
+                document.getElementById('importJsonBtn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'importJson' });
                 });
 
                 document.getElementById('structList').addEventListener('click', (e) => {
