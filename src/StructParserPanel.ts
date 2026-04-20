@@ -663,6 +663,27 @@ export class StructParserPanel {
                     font-weight: 600;
                 }
 
+                .collapse-toggle-btn {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 4px 10px;
+                    font-size: 11px;
+                    font-weight: 500;
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 4px;
+                    background: transparent;
+                    color: var(--vscode-descriptionForeground);
+                    cursor: pointer;
+                    transition: all 0.15s;
+                    font-family: var(--vscode-font-family);
+                }
+
+                .collapse-toggle-btn:hover {
+                    background: var(--vscode-list-hoverBackground);
+                    color: var(--vscode-foreground);
+                }
+
                 .fields-tree {
                     flex: 1;
                     overflow-y: auto;
@@ -975,6 +996,10 @@ export class StructParserPanel {
                             <span>Parsed Fields</span>
                             <span class="fields-count" id="fieldsCount">0</span>
                         </div>
+                        <button class="collapse-toggle-btn" id="collapseToggleBtn" title="Collapse All">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h4v4H3V3zm0 6h4v4H3V9zm6-6h4v4H9V3zm0 6h4v4H9V9z" opacity="0.3"/><path d="M1.5 1h13a.5.5 0 0 1 0 1h-13a.5.5 0 0 1 0-1zm0 13h13a.5.5 0 0 1 0 1h-13a.5.5 0 0 1 0-1z"/></svg>
+                            <span id="collapseToggleLabel">Collapse All</span>
+                        </button>
                     </div>
 
                     <!-- Column Header -->
@@ -1002,10 +1027,33 @@ export class StructParserPanel {
                 let currentStructName = '${structName.replace(/'/g, "\\'")}';
                 let currentFields = ${initialFieldsJson};
                 let hideZero = false;
+                let allCollapsed = false;
 
                 document.getElementById('btnParse')?.addEventListener('click', parseValue);
                 document.getElementById('hexInput')?.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') parseValue();
+                });
+
+                document.getElementById('collapseToggleBtn')?.addEventListener('click', () => {
+                    allCollapsed = !allCollapsed;
+                    const expands = document.querySelectorAll('.tree-expand:not(.leaf)');
+                    expands.forEach(el => {
+                        const treeNode = el.closest('.tree-node');
+                        const children = treeNode?.querySelector(':scope > .tree-children');
+                        if (children) {
+                            if (allCollapsed) {
+                                el.classList.remove('expanded');
+                                children.classList.add('collapsed');
+                            } else {
+                                el.classList.add('expanded');
+                                children.classList.remove('collapsed');
+                            }
+                        }
+                    });
+                    const label = document.getElementById('collapseToggleLabel');
+                    const btn = document.getElementById('collapseToggleBtn');
+                    if (label) label.textContent = allCollapsed ? 'Expand All' : 'Collapse All';
+                    if (btn) btn.title = allCollapsed ? 'Expand All' : 'Collapse All';
                 });
 
                 document.getElementById('fieldsTree')?.addEventListener('click', handleFieldClick);
