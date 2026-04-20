@@ -1,624 +1,414 @@
 {
-  "structs" : [ {
-    "name" : "",
-    "type" : "A",
-    "bits" : 8,
-    "fields" : [ {
-      "name" : "a",
-      "type" : "uint7",
-      "bits" : 7,
-      "offset" : 0
-    }, {
-      "name" : "b",
-      "type" : "uint1",
-      "bits" : 1,
-      "offset" : 7
-    } ]
-  }, {
-    "name" : "",
-    "type" : "B",
-    "bits" : 8,
-    "fields" : [ {
-      "name" : "c",
-      "type" : "uint4",
-      "bits" : 4,
-      "offset" : 0
-    }, {
-      "name" : "d",
-      "type" : "uint4",
-      "bits" : 4,
-      "offset" : 4
-    } ]
-  }, {
-    "name" : "",
-    "type" : "C",
-    "bits" : 16,
-    "fields" : [ {
-      "name" : "ref_a",
+  "structs" : [
+    {
+      "name" : "",
       "type" : "A",
       "bits" : 8,
-      "offset" : 0,
-      "fields" : [ {
-        "name" : "a",
-        "type" : "uint7",
-        "bits" : 7,
-        "offset" : 0
-      }, {
-        "name" : "b",
-        "type" : "uint1",
-        "bits" : 1,
-        "offset" : 7
-      } ]
-    }, {
-      "name" : "ref_b",
+      "fields" : [
+        {"name" : "a", "type" : "uint7", "bits" : 7, "offset" : 0},
+        {"name" : "b", "type" : "uint1", "bits" : 1, "offset" : 7}
+      ]
+    },
+    {
+      "name" : "",
       "type" : "B",
       "bits" : 8,
-      "offset" : 8,
-      "fields" : [ {
-        "name" : "c",
-        "type" : "uint4",
-        "bits" : 4,
-        "offset" : 8
-      }, {
-        "name" : "d",
-        "type" : "uint4",
-        "bits" : 4,
-        "offset" : 12
-      } ]
-    } ]
-  }, {
-    "name" : "",
-    "type" : "D",
-    "bits" : 32,
-    "fields" : [ {
-      "name" : "g",
-      "type" : "",
+      "fields" : [
+        {"name" : "c", "type" : "uint4", "bits" : 4, "offset" : 0},
+        {"name" : "d", "type" : "uint4", "bits" : 4, "offset" : 4}
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "C",
       "bits" : 16,
-      "offset" : 0,
-      "fields" : [ {
-        "name" : "e",
-        "type" : "uint10",
-        "bits" : 10,
-        "offset" : 0
-      }, {
-        "name" : "f",
-        "type" : "uint6",
-        "bits" : 6,
-        "offset" : 10
-      } ]
-    }, {
-      "name" : "j",
-      "type" : "",
-      "bits" : 16,
-      "offset" : 16,
-      "fields" : [ {
-        "name" : "h",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 16
-      }, {
-        "name" : "i",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 16
-      } ]
-    } ]
-  }, {
-    "name" : "",
-    "type" : "NestedOuter",
-    "bits" : 56,
-    "fields" : [ {
-      "name" : "header",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 0
-    }, {
-      "name" : "position",
-      "type" : "",
+      "fields" : [
+        {
+          "name" : "ref_a",
+          "type" : "A",
+          "bits" : 8,
+          "offset" : 0,
+          "fields" : [
+            {"name" : "a", "type" : "uint7", "bits" : 7, "offset" : 0},
+            {"name" : "b", "type" : "uint1", "bits" : 1, "offset" : 7}
+          ]
+        },
+        {
+          "name" : "ref_b",
+          "type" : "B",
+          "bits" : 8,
+          "offset" : 8,
+          "fields" : [
+            {"name" : "c", "type" : "uint4", "bits" : 4, "offset" : 8},
+            {"name" : "d", "type" : "uint4", "bits" : 4, "offset" : 12}
+          ]
+        }
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "D",
       "bits" : 32,
-      "offset" : 8,
-      "fields" : [ {
-        "name" : "x",
-        "type" : "uint8",
-        "bits" : 8,
-        "offset" : 8
-      }, {
-        "name" : "y",
-        "type" : "uint8",
-        "bits" : 8,
-        "offset" : 16
-      }, {
-        "name" : "color",
-        "type" : "",
-        "bits" : 16,
-        "offset" : 24,
-        "fields" : [ {
-          "name" : "red",
-          "type" : "uint4",
-          "bits" : 4,
-          "offset" : 24
-        }, {
-          "name" : "green",
-          "type" : "uint4",
-          "bits" : 4,
-          "offset" : 28
-        }, {
-          "name" : "blue",
-          "type" : "uint4",
-          "bits" : 4,
-          "offset" : 32
-        }, {
-          "name" : "alpha",
-          "type" : "uint4",
-          "bits" : 4,
-          "offset" : 36
-        } ]
-      } ]
-    }, {
-      "name" : "footer",
-      "type" : "uint16",
-      "bits" : 16,
-      "offset" : 40
-    } ]
-  }, {
-    "name" : "",
-    "type" : "ComplexDevice",
-    "bits" : 64,
-    "fields" : [ {
-      "name" : "device_id",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 0
-    }, {
-      "name" : "status",
-      "type" : "",
-      "bits" : 16,
-      "offset" : 8,
-      "fields" : [ {
-        "name" : "status_code",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 8
-      }, {
-        "name" : "flags",
-        "type" : "",
-        "bits" : 16,
-        "offset" : 8,
-        "fields" : [ {
-          "name" : "busy",
-          "type" : "uint1",
-          "bits" : 1,
-          "offset" : 8
-        }, {
-          "name" : "error",
-          "type" : "uint1",
-          "bits" : 1,
-          "offset" : 9
-        }, {
-          "name" : "ready",
-          "type" : "uint1",
-          "bits" : 1,
-          "offset" : 10
-        }, {
-          "name" : "reserved",
-          "type" : "uint13",
-          "bits" : 13,
-          "offset" : 11
-        } ]
-      } ]
-    }, {
-      "name" : "data",
-      "type" : "",
-      "bits" : 32,
-      "offset" : 24,
-      "fields" : [ {
-        "name" : "raw_data",
-        "type" : "uint32",
-        "bits" : 32,
-        "offset" : 24
-      }, {
-        "name" : "bytes",
-        "type" : "",
-        "bits" : 32,
-        "offset" : 24,
-        "fields" : [ {
-          "name" : "byte0",
-          "type" : "uint8",
-          "bits" : 8,
-          "offset" : 24
-        }, {
-          "name" : "byte1",
-          "type" : "uint8",
-          "bits" : 8,
-          "offset" : 32
-        }, {
-          "name" : "byte2",
-          "type" : "uint8",
-          "bits" : 8,
-          "offset" : 40
-        }, {
-          "name" : "byte3",
-          "type" : "uint8",
-          "bits" : 8,
-          "offset" : 48
-        } ]
-      }, {
-        "name" : "words",
-        "type" : "",
-        "bits" : 32,
-        "offset" : 24,
-        "fields" : [ {
-          "name" : "word0",
-          "type" : "uint16",
+      "fields" : [
+        {
+          "name" : "g",
+          "type" : "",
           "bits" : 16,
-          "offset" : 24
-        }, {
-          "name" : "word1",
-          "type" : "uint16",
+          "offset" : 0,
+          "fields" : [
+            {"name" : "e", "type" : "uint10", "bits" : 10, "offset" : 0},
+            {"name" : "f", "type" : "uint6", "bits" : 6, "offset" : 10}
+          ]
+        },
+        {
+          "name" : "j",
+          "type" : "",
           "bits" : 16,
-          "offset" : 40
-        } ]
-      } ]
-    }, {
-      "name" : "checksum",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 56
-    } ]
-  }, {
-    "name" : "",
-    "type" : "DeepNested",
-    "bits" : 32,
-    "fields" : [ {
-      "name" : "level1",
-      "type" : "",
+          "offset" : 16,
+          "fields" : [
+            {"name" : "h", "type" : "uint16", "bits" : 16, "offset" : 16},
+            {"name" : "i", "type" : "uint16", "bits" : 16, "offset" : 16}
+          ]
+        }
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "NestedOuter",
+      "bits" : 56,
+      "fields" : [
+        {"name" : "header", "type" : "uint8", "bits" : 8, "offset" : 0},
+        {
+          "name" : "position",
+          "type" : "",
+          "bits" : 32,
+          "offset" : 8,
+          "fields" : [
+            {"name" : "x", "type" : "uint8", "bits" : 8, "offset" : 8},
+            {"name" : "y", "type" : "uint8", "bits" : 8, "offset" : 16},
+            {
+          "name" : "color",
+          "type" : "",
+          "bits" : 16,
+          "offset" : 24,
+          "fields" : [
+            {"name" : "red", "type" : "uint4", "bits" : 4, "offset" : 24},
+            {"name" : "green", "type" : "uint4", "bits" : 4, "offset" : 28},
+            {"name" : "blue", "type" : "uint4", "bits" : 4, "offset" : 32},
+            {"name" : "alpha", "type" : "uint4", "bits" : 4, "offset" : 36}
+          ]
+        }
+          ]
+        },
+        {"name" : "footer", "type" : "uint16", "bits" : 16, "offset" : 40}
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "ComplexDevice",
+      "bits" : 64,
+      "fields" : [
+        {"name" : "device_id", "type" : "uint8", "bits" : 8, "offset" : 0},
+        {
+          "name" : "status",
+          "type" : "",
+          "bits" : 16,
+          "offset" : 8,
+          "fields" : [
+            {"name" : "status_code", "type" : "uint16", "bits" : 16, "offset" : 8},
+            {
+          "name" : "flags",
+          "type" : "",
+          "bits" : 16,
+          "offset" : 8,
+          "fields" : [
+            {"name" : "busy", "type" : "uint1", "bits" : 1, "offset" : 8},
+            {"name" : "error", "type" : "uint1", "bits" : 1, "offset" : 9},
+            {"name" : "ready", "type" : "uint1", "bits" : 1, "offset" : 10},
+            {"name" : "reserved", "type" : "uint13", "bits" : 13, "offset" : 11}
+          ]
+        }
+          ]
+        },
+        {
+          "name" : "data",
+          "type" : "",
+          "bits" : 32,
+          "offset" : 24,
+          "fields" : [
+            {"name" : "raw_data", "type" : "uint32", "bits" : 32, "offset" : 24},
+            {
+          "name" : "bytes",
+          "type" : "",
+          "bits" : 32,
+          "offset" : 24,
+          "fields" : [
+            {"name" : "byte0", "type" : "uint8", "bits" : 8, "offset" : 24},
+            {"name" : "byte1", "type" : "uint8", "bits" : 8, "offset" : 32},
+            {"name" : "byte2", "type" : "uint8", "bits" : 8, "offset" : 40},
+            {"name" : "byte3", "type" : "uint8", "bits" : 8, "offset" : 48}
+          ]
+        },
+            {
+          "name" : "words",
+          "type" : "",
+          "bits" : 32,
+          "offset" : 24,
+          "fields" : [
+            {"name" : "word0", "type" : "uint16", "bits" : 16, "offset" : 24},
+            {"name" : "word1", "type" : "uint16", "bits" : 16, "offset" : 40}
+          ]
+        }
+          ]
+        },
+        {"name" : "checksum", "type" : "uint8", "bits" : 8, "offset" : 56}
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "DeepNested",
       "bits" : 32,
-      "offset" : 0,
-      "fields" : [ {
-        "name" : "middle_layer",
-        "type" : "",
-        "bits" : 16,
-        "offset" : 0,
-        "fields" : [ {
+      "fields" : [
+        {
+          "name" : "level1",
+          "type" : "",
+          "bits" : 32,
+          "offset" : 0,
+          "fields" : [
+            {
+          "name" : "middle_layer",
+          "type" : "",
+          "bits" : 16,
+          "offset" : 0,
+          "fields" : [
+            {
           "name" : "innermost",
           "type" : "",
           "bits" : 8,
           "offset" : 0,
-          "fields" : [ {
-            "name" : "flag",
-            "type" : "uint1",
-            "bits" : 1,
-            "offset" : 0
-          }, {
-            "name" : "reserved",
-            "type" : "uint7",
-            "bits" : 7,
-            "offset" : 1
-          } ]
-        }, {
-          "name" : "middle",
-          "type" : "uint8",
-          "bits" : 8,
-          "offset" : 8
-        } ]
-      }, {
-        "name" : "outer",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 16
-      } ]
-    } ]
-  }, {
-    "name" : "",
-    "type" : "Status",
-    "bits" : 16,
-    "fields" : [ {
-      "name" : "code",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 0
-    }, {
-      "name" : "flags",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 8
-    } ]
-  }, {
-    "name" : "",
-    "type" : "Version",
-    "bits" : 32,
-    "fields" : [ {
-      "name" : "major",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 0
-    }, {
-      "name" : "minor",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 8
-    }, {
-      "name" : "patch",
-      "type" : "uint16",
-      "bits" : 16,
-      "offset" : 16
-    } ]
-  }, {
-    "name" : "",
-    "type" : "Status",
-    "bits" : 16,
-    "fields" : [ {
-      "name" : "code",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 0
-    }, {
-      "name" : "flags",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 8
-    } ]
-  }, {
-    "name" : "",
-    "type" : "Version",
-    "bits" : 32,
-    "fields" : [ {
-      "name" : "major",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 0
-    }, {
-      "name" : "minor",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 8
-    }, {
-      "name" : "patch",
-      "type" : "uint16",
-      "bits" : 16,
-      "offset" : 16
-    } ]
-  }, {
-    "name" : "",
-    "type" : "DeviceInfo",
-    "bits" : 80,
-    "fields" : [ {
-      "name" : "version",
-      "type" : "Version",
-      "bits" : 32,
-      "offset" : 0,
-      "fields" : [ {
-        "name" : "major",
-        "type" : "uint8",
-        "bits" : 8,
-        "offset" : 0
-      }, {
-        "name" : "minor",
-        "type" : "uint8",
-        "bits" : 8,
-        "offset" : 8
-      }, {
-        "name" : "patch",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 16
-      } ]
-    }, {
-      "name" : "status",
+          "fields" : [
+            {"name" : "flag", "type" : "uint1", "bits" : 1, "offset" : 0},
+            {"name" : "reserved", "type" : "uint7", "bits" : 7, "offset" : 1}
+          ]
+        },
+            {"name" : "middle", "type" : "uint8", "bits" : 8, "offset" : 8}
+          ]
+        },
+            {"name" : "outer", "type" : "uint16", "bits" : 16, "offset" : 16}
+          ]
+        }
+      ]
+    },
+    {
+      "name" : "",
       "type" : "Status",
       "bits" : 16,
-      "offset" : 32,
-      "fields" : [ {
-        "name" : "code",
-        "type" : "uint8",
-        "bits" : 8,
-        "offset" : 32
-      }, {
-        "name" : "flags",
-        "type" : "uint8",
-        "bits" : 8,
-        "offset" : 40
-      } ]
-    }, {
-      "name" : "device_id",
-      "type" : "uint32",
+      "fields" : [
+        {"name" : "code", "type" : "uint8", "bits" : 8, "offset" : 0},
+        {"name" : "flags", "type" : "uint8", "bits" : 8, "offset" : 8}
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "Version",
       "bits" : 32,
-      "offset" : 48
-    } ]
-  }, {
-    "name" : "",
-    "type" : "DeviceConfig",
-    "bits" : 56,
-    "fields" : [ {
-      "name" : "mode",
-      "type" : "uint8",
-      "bits" : 8,
-      "offset" : 0
-    }, {
-      "name" : "config",
+      "fields" : [
+        {"name" : "major", "type" : "uint8", "bits" : 8, "offset" : 0},
+        {"name" : "minor", "type" : "uint8", "bits" : 8, "offset" : 8},
+        {"name" : "patch", "type" : "uint16", "bits" : 16, "offset" : 16}
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "Status",
+      "bits" : 16,
+      "fields" : [
+        {"name" : "code", "type" : "uint8", "bits" : 8, "offset" : 0},
+        {"name" : "flags", "type" : "uint8", "bits" : 8, "offset" : 8}
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "Version",
+      "bits" : 32,
+      "fields" : [
+        {"name" : "major", "type" : "uint8", "bits" : 8, "offset" : 0},
+        {"name" : "minor", "type" : "uint8", "bits" : 8, "offset" : 8},
+        {"name" : "patch", "type" : "uint16", "bits" : 16, "offset" : 16}
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "DeviceInfo",
+      "bits" : 80,
+      "fields" : [
+        {
+          "name" : "version",
+          "type" : "Version",
+          "bits" : 32,
+          "offset" : 0,
+          "fields" : [
+            {"name" : "major", "type" : "uint8", "bits" : 8, "offset" : 0},
+            {"name" : "minor", "type" : "uint8", "bits" : 8, "offset" : 8},
+            {"name" : "patch", "type" : "uint16", "bits" : 16, "offset" : 16}
+          ]
+        },
+        {
+          "name" : "status",
+          "type" : "Status",
+          "bits" : 16,
+          "offset" : 32,
+          "fields" : [
+            {"name" : "code", "type" : "uint8", "bits" : 8, "offset" : 32},
+            {"name" : "flags", "type" : "uint8", "bits" : 8, "offset" : 40}
+          ]
+        },
+        {"name" : "device_id", "type" : "uint32", "bits" : 32, "offset" : 48}
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "DeviceConfig",
+      "bits" : 56,
+      "fields" : [
+        {"name" : "mode", "type" : "uint8", "bits" : 8, "offset" : 0},
+        {
+          "name" : "config",
+          "type" : "ConfigValue",
+          "bits" : 32,
+          "offset" : 8,
+          "fields" : [
+            {"name" : "raw", "type" : "uint32", "bits" : 32, "offset" : 8},
+            {
+          "name" : "parts",
+          "type" : "",
+          "bits" : 32,
+          "offset" : 8,
+          "fields" : [
+            {"name" : "low", "type" : "uint16", "bits" : 16, "offset" : 8},
+            {"name" : "high", "type" : "uint16", "bits" : 16, "offset" : 24}
+          ]
+        }
+          ]
+        },
+        {"name" : "timeout", "type" : "uint16", "bits" : 16, "offset" : 40}
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "DataPacket",
+      "bits" : 96,
+      "fields" : [
+        {
+          "name" : "header_version",
+          "type" : "Version",
+          "bits" : 32,
+          "offset" : 0,
+          "fields" : [
+            {"name" : "major", "type" : "uint8", "bits" : 8, "offset" : 0},
+            {"name" : "minor", "type" : "uint8", "bits" : 8, "offset" : 8},
+            {"name" : "patch", "type" : "uint16", "bits" : 16, "offset" : 16}
+          ]
+        },
+        {"name" : "length", "type" : "uint16", "bits" : 16, "offset" : 32},
+        {
+          "name" : "integrity",
+          "type" : "",
+          "bits" : 32,
+          "offset" : 48,
+          "fields" : [
+            {"name" : "checksum", "type" : "uint32", "bits" : 32, "offset" : 48},
+            {
+          "name" : "crc_parts",
+          "type" : "",
+          "bits" : 32,
+          "offset" : 48,
+          "fields" : [
+            {"name" : "crc_low", "type" : "uint16", "bits" : 16, "offset" : 48},
+            {"name" : "crc_high", "type" : "uint16", "bits" : 16, "offset" : 64}
+          ]
+        }
+          ]
+        },
+        {
+          "name" : "packet_status",
+          "type" : "Status",
+          "bits" : 16,
+          "offset" : 80,
+          "fields" : [
+            {"name" : "code", "type" : "uint8", "bits" : 8, "offset" : 80},
+            {"name" : "flags", "type" : "uint8", "bits" : 8, "offset" : 88}
+          ]
+        }
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "Meta",
+      "bits" : 24,
+      "fields" : [
+        {"name" : "flag1", "type" : "uint1", "bits" : 1, "offset" : 0},
+        {"name" : "flag2", "type" : "uint1", "bits" : 1, "offset" : 0},
+        {"name" : "flag3", "type" : "uint1", "bits" : 1, "offset" : 1},
+        {"name" : "flag4", "type" : "uint1", "bits" : 1, "offset" : 1},
+        {"name" : "typeid", "type" : "uint22", "bits" : 22, "offset" : 2}
+      ]
+    }
+  ],
+  "unions" : [
+    {
+      "name" : "",
+      "type" : "DataValue",
+      "bits" : 32,
+      "fields" : [
+        {"name" : "raw", "type" : "uint32", "bits" : 32, "offset" : 0},
+        {
+          "name" : "words",
+          "type" : "",
+          "bits" : 32,
+          "offset" : 0,
+          "fields" : [
+            {"name" : "low", "type" : "uint16", "bits" : 16, "offset" : 0},
+            {"name" : "high", "type" : "uint16", "bits" : 16, "offset" : 16}
+          ]
+        }
+      ]
+    },
+    {
+      "name" : "",
       "type" : "ConfigValue",
       "bits" : 32,
-      "offset" : 8,
-      "fields" : [ {
-        "name" : "raw",
-        "type" : "uint32",
-        "bits" : 32,
-        "offset" : 8
-      }, {
-        "name" : "parts",
-        "type" : "",
-        "bits" : 32,
-        "offset" : 8,
-        "fields" : [ {
-          "name" : "low",
-          "type" : "uint16",
-          "bits" : 16,
-          "offset" : 8
-        }, {
-          "name" : "high",
-          "type" : "uint16",
-          "bits" : 16,
-          "offset" : 24
-        } ]
-      } ]
-    }, {
-      "name" : "timeout",
-      "type" : "uint16",
-      "bits" : 16,
-      "offset" : 40
-    } ]
-  }, {
-    "name" : "",
-    "type" : "DataPacket",
-    "bits" : 96,
-    "fields" : [ {
-      "name" : "header_version",
-      "type" : "Version",
+      "fields" : [
+        {"name" : "raw", "type" : "uint32", "bits" : 32, "offset" : 0},
+        {
+          "name" : "parts",
+          "type" : "",
+          "bits" : 32,
+          "offset" : 0,
+          "fields" : [
+            {"name" : "low", "type" : "uint16", "bits" : 16, "offset" : 0},
+            {"name" : "high", "type" : "uint16", "bits" : 16, "offset" : 16}
+          ]
+        }
+      ]
+    },
+    {
+      "name" : "",
+      "type" : "ConfigValue",
       "bits" : 32,
-      "offset" : 0,
-      "fields" : [ {
-        "name" : "major",
-        "type" : "uint8",
-        "bits" : 8,
-        "offset" : 0
-      }, {
-        "name" : "minor",
-        "type" : "uint8",
-        "bits" : 8,
-        "offset" : 8
-      }, {
-        "name" : "patch",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 16
-      } ]
-    }, {
-      "name" : "length",
-      "type" : "uint16",
-      "bits" : 16,
-      "offset" : 32
-    }, {
-      "name" : "integrity",
-      "type" : "",
-      "bits" : 32,
-      "offset" : 48,
-      "fields" : [ {
-        "name" : "checksum",
-        "type" : "uint32",
-        "bits" : 32,
-        "offset" : 48
-      }, {
-        "name" : "crc_parts",
-        "type" : "",
-        "bits" : 32,
-        "offset" : 48,
-        "fields" : [ {
-          "name" : "crc_low",
-          "type" : "uint16",
-          "bits" : 16,
-          "offset" : 48
-        }, {
-          "name" : "crc_high",
-          "type" : "uint16",
-          "bits" : 16,
-          "offset" : 64
-        } ]
-      } ]
-    }, {
-      "name" : "packet_status",
-      "type" : "Status",
-      "bits" : 16,
-      "offset" : 80,
-      "fields" : [ {
-        "name" : "code",
-        "type" : "uint8",
-        "bits" : 8,
-        "offset" : 80
-      }, {
-        "name" : "flags",
-        "type" : "uint8",
-        "bits" : 8,
-        "offset" : 88
-      } ]
-    } ]
-  } ],
-  "unions" : [ {
-    "name" : "",
-    "type" : "DataValue",
-    "bits" : 32,
-    "fields" : [ {
-      "name" : "raw",
-      "type" : "uint32",
-      "bits" : 32,
-      "offset" : 0
-    }, {
-      "name" : "words",
-      "type" : "",
-      "bits" : 32,
-      "offset" : 0,
-      "fields" : [ {
-        "name" : "low",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 0
-      }, {
-        "name" : "high",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 16
-      } ]
-    } ]
-  }, {
-    "name" : "",
-    "type" : "ConfigValue",
-    "bits" : 32,
-    "fields" : [ {
-      "name" : "raw",
-      "type" : "uint32",
-      "bits" : 32,
-      "offset" : 0
-    }, {
-      "name" : "parts",
-      "type" : "",
-      "bits" : 32,
-      "offset" : 0,
-      "fields" : [ {
-        "name" : "low",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 0
-      }, {
-        "name" : "high",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 16
-      } ]
-    } ]
-  }, {
-    "name" : "",
-    "type" : "ConfigValue",
-    "bits" : 32,
-    "fields" : [ {
-      "name" : "raw",
-      "type" : "uint32",
-      "bits" : 32,
-      "offset" : 0
-    }, {
-      "name" : "parts",
-      "type" : "",
-      "bits" : 32,
-      "offset" : 0,
-      "fields" : [ {
-        "name" : "low",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 0
-      }, {
-        "name" : "high",
-        "type" : "uint16",
-        "bits" : 16,
-        "offset" : 16
-      } ]
-    } ]
-  } ]
+      "fields" : [
+        {"name" : "raw", "type" : "uint32", "bits" : 32, "offset" : 0},
+        {
+          "name" : "parts",
+          "type" : "",
+          "bits" : 32,
+          "offset" : 0,
+          "fields" : [
+            {"name" : "low", "type" : "uint16", "bits" : 16, "offset" : 0},
+            {"name" : "high", "type" : "uint16", "bits" : 16, "offset" : 16}
+          ]
+        }
+      ]
+    }
+  ]
 }

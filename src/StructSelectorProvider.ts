@@ -76,7 +76,6 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             }
         });
 
-        // Initial data update
         this._updateWebview();
     }
 
@@ -106,7 +105,6 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                             this._structData = JSON.parse(content);
                             break;
                         } catch (error) {
-                            // Continue to next path
                         }
                     }
                 }
@@ -122,7 +120,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         if (!searchTerm.trim()) {
             this._view.webview.postMessage({
                 command: 'searchResults',
-                results: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits }))
+                results: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some(u => u.type === s.type) ?? false }))
             });
             return;
         }
@@ -134,7 +132,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
         this._view.webview.postMessage({
             command: 'searchResults',
-            results: filtered.map(s => ({ name: s.type, structKind: s.type, bits: s.bits }))
+            results: filtered.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some(u => u.type === s.type) ?? false }))
         });
     }
 
@@ -188,7 +186,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         const allStructs = this._getAllStructs();
         this._view.webview.postMessage({
             command: 'updateData',
-            structs: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits })),
+            structs: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some(u => u.type === s.type) ?? false })),
             hasData: allStructs.length > 0
         });
     }
@@ -199,7 +197,12 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
-        const allStructs = this._getAllStructs().map(s => ({ name: s.type, structKind: s.type, bits: s.bits }));
+        const allStructs = this._getAllStructs().map(s => ({
+            name: s.type,
+            structKind: s.type,
+            bits: s.bits,
+            isUnion: this._structData?.unions?.some(u => u.type === s.type) ?? false
+        }));
 
         return `<!DOCTYPE html>
         <html lang="en">
@@ -208,503 +211,301 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Struct Selector</title>
             <style>
-                :root {
-                    --primary: #4EC9B0;
-                    --primary-hover: #3DB8A0;
-                    --primary-bg: rgba(78, 201, 176, 0.12);
-                    --primary-border: rgba(78, 201, 176, 0.3);
-                    --secondary: #C586C0;
-                    --accent: #75BEFF;
-                    --text-primary: var(--vscode-foreground);
-                    --text-secondary: var(--vscode-descriptionForeground);
-                    --text-muted: var(--vscode-textPreformat-foreground);
-                    --bg: var(--vscode-sidebar-background);
-                    --panel-bg: var(--vscode-panel-background);
-                    --border: var(--vscode-panel-border);
-                    --input-bg: var(--vscode-input-background);
-                    --input-border: var(--vscode-input-border);
-                    --hover-bg: var(--vscode-list-hoverBackground);
-                    --selection-bg: var(--vscode-list-activeSelectionBackground);
-                    --toolbar-hover: var(--vscode-toolbar-hoverBackground);
-                    --radius-sm: 6px;
-                    --radius-md: 10px;
-                    --radius-lg: 14px;
-                    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
-                    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
-                    --transition: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-
                 * { box-sizing: border-box; margin: 0; padding: 0; }
 
                 body {
                     font-family: var(--vscode-font-family);
                     font-size: 13px;
-                    color: var(--text-primary);
-                    background-color: var(--bg);
-                    padding: 16px;
+                    color: var(--vscode-foreground);
+                    background-color: var(--vscode-sidebar-background);
                 }
 
-                .ss-container {
+                .sidebar {
                     display: flex;
                     flex-direction: column;
-                    gap: 16px;
+                    height: 100vh;
+                    overflow: hidden;
                 }
 
-                /* Header Card */
-                .ss-header {
-                    background: var(--panel-bg);
-                    border: 1px solid var(--border);
-                    border-radius: var(--radius-lg);
-                    padding: 16px;
-                    box-shadow: var(--shadow-sm);
-                }
-
-                .ss-header-title {
+                .sidebar-header {
+                    padding: 12px 16px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
                     display: flex;
                     align-items: center;
-                    gap: 8px;
-                    margin-bottom: 12px;
+                    justify-content: space-between;
                 }
 
-                .ss-header-icon {
-                    font-size: 20px;
-                }
-
-                .ss-header-text {
-                    font-size: 14px;
+                .sidebar-title {
+                    font-size: 11px;
                     font-weight: 600;
-                    color: var(--text-primary);
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    color: var(--vscode-descriptionForeground);
                 }
 
-                .ss-toolbar {
-                    display: flex;
-                    gap: 8px;
-                }
-
-                .ss-btn {
-                    flex: 1;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 6px;
+                .sidebar-search {
                     padding: 8px 12px;
-                    font-size: 12px;
-                    font-weight: 500;
-                    border: none;
-                    border-radius: var(--radius-md);
-                    cursor: pointer;
-                    transition: all var(--transition);
-                    font-family: inherit;
+                    border-bottom: 1px solid var(--vscode-panel-border);
                 }
 
-                .ss-btn-primary {
-                    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
-                    color: white;
-                    box-shadow: 0 2px 8px rgba(78, 201, 176, 0.3);
-                }
-
-                .ss-btn-primary:hover {
-                    transform: translateY(-1px);
-                    box-shadow: 0 4px 12px rgba(78, 201, 176, 0.4);
-                }
-
-                .ss-btn-secondary {
-                    background: var(--panel-bg);
-                    color: var(--text-secondary);
-                    border: 1px solid var(--border);
-                }
-
-                .ss-btn-secondary:hover {
-                    background: var(--hover-bg);
-                    color: var(--text-primary);
-                }
-
-                .ss-btn-toggle {
-                    background: var(--panel-bg);
-                    color: var(--text-secondary);
-                    border: 1px solid var(--border);
-                }
-
-                .ss-btn-toggle:hover {
-                    background: var(--hover-bg);
-                    color: var(--text-primary);
-                }
-
-                .ss-btn-toggle.active {
-                    background: rgba(78, 201, 176, 0.15);
-                    color: var(--primary);
-                    border-color: var(--primary-border);
-                }
-
-                /* Search Card */
-                .ss-search-card {
-                    background: var(--panel-bg);
-                    border: 1px solid var(--border);
-                    border-radius: var(--radius-lg);
-                    padding: 12px;
-                    box-shadow: var(--shadow-sm);
-                }
-
-                .ss-search {
+                .search-box {
                     position: relative;
                 }
 
-                .ss-search-icon {
+                .search-box svg {
                     position: absolute;
-                    left: 12px;
+                    left: 8px;
                     top: 50%;
                     transform: translateY(-50%);
-                    font-size: 14px;
-                    color: var(--text-muted);
-                    pointer-events: none;
+                    color: var(--vscode-descriptionForeground);
+                    width: 14px;
+                    height: 14px;
                 }
 
-                .ss-search-input {
+                .search-input {
                     width: 100%;
-                    padding: 10px 36px;
-                    border: 1px solid var(--input-border);
-                    border-radius: var(--radius-md);
-                    background: var(--input-bg);
-                    color: var(--text-primary);
-                    font-size: 13px;
-                    transition: all var(--transition);
-                }
-
-                .ss-search-input:focus {
+                    padding: 6px 8px 6px 28px;
+                    border: 1px solid var(--vscode-input-border);
+                    border-radius: 4px;
+                    background: var(--vscode-input-background);
+                    color: var(--vscode-input-foreground);
+                    font-size: 12px;
                     outline: none;
-                    border-color: var(--primary);
-                    box-shadow: 0 0 0 3px var(--primary-bg);
+                    transition: border-color 0.15s;
+                    font-family: var(--vscode-font-family);
                 }
 
-                .ss-search-input::placeholder {
-                    color: var(--text-muted);
+                .search-input:focus {
+                    border-color: #4EC9B0;
                 }
 
-                .ss-search-clear {
-                    position: absolute;
-                    right: 8px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    width: 20px;
-                    height: 20px;
+                .search-input::placeholder {
+                    color: var(--vscode-input-placeholderForeground);
+                }
+
+                .sidebar-toolbar {
+                    padding: 6px 12px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
                     display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: transparent;
-                    border: none;
-                    border-radius: var(--radius-sm);
-                    color: var(--text-muted);
-                    cursor: pointer;
-                    opacity: 0;
-                    transition: opacity var(--transition);
-                    font-size: 12px;
+                    gap: 6px;
                 }
 
-                .ss-search-input:not(:placeholder-shown) ~ .ss-search-clear {
-                    opacity: 1;
-                }
-
-                .ss-search-clear:hover {
-                    background: var(--toolbar-hover);
-                    color: var(--text-primary);
-                }
-
-                /* Status Card */
-                .ss-status-card {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    padding: 10px 14px;
-                    background: var(--panel-bg);
-                    border: 1px solid var(--border);
-                    border-radius: var(--radius-md);
-                    font-size: 12px;
-                }
-
-                .ss-status-info {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-
-                .ss-status-icon {
-                    font-size: 14px;
-                }
-
-                .ss-status-text {
-                    color: var(--text-secondary);
-                }
-
-                .ss-status-count {
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    min-width: 22px;
-                    height: 22px;
-                    padding: 0 6px;
-                    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
-                    color: white;
-                    border-radius: 9999px;
+                .toolbar-btn {
+                    flex: 1;
+                    padding: 5px 8px;
                     font-size: 11px;
-                    font-weight: 600;
-                }
-
-                .ss-status-empty .ss-status-icon { color: #FFB347; }
-                .ss-status-empty .ss-status-count {
-                    background: var(--text-muted);
-                }
-
-                /* List Card */
-                .ss-list-card {
-                    background: var(--panel-bg);
-                    border: 1px solid var(--border);
-                    border-radius: var(--radius-lg);
-                    overflow: hidden;
-                    box-shadow: var(--shadow-sm);
-                }
-
-                .ss-list-header {
+                    font-weight: 500;
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 4px;
+                    background: transparent;
+                    color: var(--vscode-descriptionForeground);
+                    cursor: pointer;
+                    transition: all 0.15s;
                     display: flex;
                     align-items: center;
-                    justify-content: space-between;
-                    padding: 12px 16px;
-                    background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
-                    border-bottom: 1px solid var(--border);
+                    justify-content: center;
+                    gap: 4px;
+                    font-family: var(--vscode-font-family);
                 }
 
-                .ss-list-title {
+                .toolbar-btn:hover {
+                    background: var(--vscode-list-hoverBackground);
+                    color: var(--vscode-foreground);
+                }
+
+                .toolbar-btn.active {
+                    background: rgba(78, 201, 176, 0.15);
+                    color: #4EC9B0;
+                    border-color: rgba(78, 201, 176, 0.3);
+                }
+
+                .struct-list {
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 4px 0;
+                }
+
+                .struct-list::-webkit-scrollbar {
+                    width: 6px;
+                }
+
+                .struct-list::-webkit-scrollbar-thumb {
+                    background: var(--vscode-scrollbarSlider-background);
+                    border-radius: 3px;
+                }
+
+                .struct-item {
                     display: flex;
                     align-items: center;
                     gap: 8px;
-                    font-size: 12px;
-                    font-weight: 600;
-                    color: var(--text-secondary);
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                }
-
-                .ss-list-icon {
-                    font-size: 14px;
-                    color: var(--primary);
-                }
-
-                .ss-list {
-                    display: flex;
-                    flex-direction: column;
-                    max-height: 350px;
-                    overflow-y: auto;
-                    padding: 8px;
-                }
-
-                .ss-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    padding: 10px 12px;
-                    border-radius: var(--radius-md);
+                    padding: 6px 16px;
                     cursor: pointer;
-                    transition: all var(--transition);
-                    border: 1px solid transparent;
+                    transition: background 0.1s;
+                    border-left: 2px solid transparent;
                 }
 
-                .ss-item:hover {
-                    background: var(--hover-bg);
-                    border-color: var(--border);
+                .struct-item:hover {
+                    background: var(--vscode-list-hoverBackground);
                 }
 
-                .ss-item.selected {
-                    background: var(--selection-bg);
-                    border-color: var(--primary-border);
+                .struct-item.selected {
+                    background: var(--vscode-list-activeSelectionBackground);
+                    border-left-color: #4EC9B0;
                 }
 
-                .ss-item-icon {
-                    width: 10px;
-                    height: 10px;
+                .struct-item.selected .struct-item-name {
+                    color: var(--vscode-foreground);
+                }
+
+                .struct-dot {
+                    width: 8px;
+                    height: 8px;
                     border-radius: 50%;
                     flex-shrink: 0;
-                    box-shadow: 0 0 6px currentColor;
                 }
 
-                .ss-item-icon.struct {
-                    background: linear-gradient(135deg, #4EC9B0 0%, #3DB8A0 100%);
-                    color: #4EC9B0;
-                }
+                .struct-dot.struct { background: #4EC9B0; }
+                .struct-dot.union { background: #C586C0; }
 
-                .ss-item-icon.union {
-                    background: linear-gradient(135deg, #C586C0 0%, #B575B0 100%);
-                    color: #C586C0;
-                }
-
-                .ss-item-content {
+                .struct-item-content {
                     flex: 1;
                     min-width: 0;
                 }
 
-                .ss-item-name {
+                .struct-item-name {
                     font-size: 13px;
-                    font-weight: 500;
-                    color: var(--text-primary);
+                    color: var(--vscode-foreground);
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
                 }
 
-                .ss-item-meta {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    margin-top: 4px;
+                .struct-item-meta {
+                    font-size: 11px;
+                    color: var(--vscode-descriptionForeground);
+                    margin-top: 1px;
                 }
 
-                .ss-item-type {
-                    font-size: 10px;
-                    font-weight: 500;
-                    padding: 2px 6px;
-                    border-radius: 4px;
+                .struct-item-badge {
+                    font-size: 9px;
+                    font-weight: 600;
+                    padding: 1px 5px;
+                    border-radius: 3px;
                     text-transform: uppercase;
+                    flex-shrink: 0;
                 }
 
-                .ss-item-type.struct {
+                .struct-item-badge.struct {
                     background: rgba(78, 201, 176, 0.15);
                     color: #4EC9B0;
                 }
 
-                .ss-item-type.union {
+                .struct-item-badge.union {
                     background: rgba(197, 134, 192, 0.15);
                     color: #C586C0;
                 }
 
-                .ss-item-bits {
+                .sidebar-footer {
+                    padding: 8px 12px;
+                    border-top: 1px solid var(--vscode-panel-border);
                     font-size: 11px;
-                    color: var(--text-muted);
-                    font-family: var(--vscode-editor-font-family);
+                    color: var(--vscode-descriptionForeground);
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
                 }
 
-                .ss-item-arrow {
-                    font-size: 12px;
-                    color: var(--text-muted);
-                    opacity: 0;
-                    transform: translateX(-4px);
-                    transition: all var(--transition);
+                .sidebar-count {
+                    background: var(--vscode-input-background);
+                    padding: 1px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    font-weight: 600;
+                    color: var(--vscode-descriptionForeground);
                 }
 
-                .ss-item:hover .ss-item-arrow {
-                    opacity: 1;
-                    transform: translateX(0);
-                }
-
-                /* Empty State */
-                .ss-empty {
+                .empty-state {
+                    flex: 1;
                     display: flex;
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
-                    padding: 32px 16px;
+                    padding: 40px 20px;
                     text-align: center;
                 }
 
-                .ss-empty-icon {
-                    font-size: 48px;
+                .empty-icon {
+                    font-size: 36px;
                     margin-bottom: 12px;
-                    opacity: 0.6;
+                    opacity: 0.5;
                 }
 
-                .ss-empty-title {
+                .empty-title {
                     font-size: 14px;
-                    font-weight: 500;
-                    color: var(--text-secondary);
-                    margin-bottom: 4px;
+                    font-weight: 600;
+                    color: var(--vscode-descriptionForeground);
+                    margin-bottom: 6px;
                 }
 
-                .ss-empty-text {
+                .empty-text {
                     font-size: 12px;
-                    color: var(--text-muted);
+                    color: var(--vscode-descriptionForeground);
+                    max-width: 200px;
+                    line-height: 1.5;
                 }
 
-                /* Animations */
                 @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(8px); }
-                    to { opacity: 1; transform: translateY(0); }
+                    from { opacity: 0; }
+                    to { opacity: 1; }
                 }
 
-                .ss-item {
-                    animation: fadeIn 0.2s ease;
-                }
-
-                .ss-list-item-highlight {
-                    background: rgba(78, 201, 176, 0.15);
-                }
+                .struct-item { animation: fadeIn 0.15s ease; }
             </style>
         </head>
         <body>
-            <div class="ss-container">
-                <div class="ss-header">
-                    <div class="ss-header-title">
-                        <span class="ss-header-icon">⚡</span>
-                        <span class="ss-header-text">Struct Parser</span>
-                    </div>
-                    <div class="ss-toolbar">
-                        <button id="btnImport" class="ss-btn ss-btn-primary">
-                            <span>📂</span>
-                            <span>Import JSON</span>
-                        </button>
-                        <button id="btnRefresh" class="ss-btn ss-btn-secondary">
-                            <span>🔄</span>
-                            <span>Refresh</span>
-                        </button>
-                    </div>
-                    <div class="ss-toolbar" style="margin-top: 8px;">
-                        <button id="btnHideZero" class="ss-btn ss-btn-toggle" title="Hide fields with zero value globally">
-                            <span>🔍</span>
-                            <span>Hide Zero Fields</span>
-                        </button>
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <span class="sidebar-title">Struct Parser</span>
+                </div>
+
+                <div class="sidebar-search">
+                    <div class="search-box">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z"/></svg>
+                        <input type="text" class="search-input" placeholder="Search structs..." id="searchInput">
                     </div>
                 </div>
 
-                <div class="ss-search-card">
-                    <div class="ss-search">
-                        <span class="ss-search-icon">🔍</span>
-                        <input type="text" id="searchInput" class="ss-search-input" placeholder="Search structs...">
-                        <button id="clearSearch" class="ss-search-clear">✕</button>
-                    </div>
+                <div class="sidebar-toolbar">
+                    <button class="toolbar-btn" id="hideZeroBtn">
+                        <span>\uD83D\uDC41</span> Hide Zero
+                    </button>
+                    <button class="toolbar-btn" id="collapseAllBtn">
+                        <span>\u229F</span> Collapse All
+                    </button>
                 </div>
 
-                <div id="statusCard" class="ss-status-card ${allStructs.length > 0 ? '' : 'ss-status-empty'}">
-                    <div class="ss-status-info">
-                        <span class="ss-status-icon">${allStructs.length > 0 ? '✓' : '⚠'}</span>
-                        <span class="ss-status-text">${allStructs.length > 0 ? 'Structs loaded' : 'No struct data'}</span>
-                    </div>
-                    <span id="structCount" class="ss-status-count">${allStructs.length}</span>
-                </div>
-
-                <div class="ss-list-card">
-                    <div class="ss-list-header">
-                        <div class="ss-list-title">
-                            <span class="ss-list-icon">📋</span>
-                            <span>Structures</span>
+                <div class="struct-list" id="structList">
+                    ${allStructs.length > 0 ? allStructs.map(s => `
+                        <div class="struct-item" data-name="${s.structKind.replace(/"/g, '&quot;')}" data-is-union="${s.isUnion}">
+                            <span class="struct-dot ${s.isUnion ? 'union' : 'struct'}"></span>
+                            <div class="struct-item-content">
+                                <div class="struct-item-name">${s.structKind}</div>
+                                <div class="struct-item-meta">${s.bits} bits · ${Math.ceil(s.bits / 8)} bytes</div>
+                            </div>
+                            <span class="struct-item-badge ${s.isUnion ? 'union' : 'struct'}">${s.isUnion ? 'union' : 'struct'}</span>
                         </div>
-                    </div>
-                    <div id="structList" class="ss-list">
-                        ${allStructs.length > 0 ? allStructs.map(s => `
-                            <div class="ss-item" data-name="${s.structKind.replace(/"/g, '&quot;')}">
-                                <span class="ss-item-icon struct"></span>
-                                <div class="ss-item-content">
-                                    <div class="ss-item-name">${s.structKind}</div>
-                                    <div class="ss-item-meta">
-                                        <span class="ss-item-type struct">${s.structKind}</span>
-                                        <span class="ss-item-bits">${s.bits} bits</span>
-                                    </div>
-                                </div>
-                                <span class="ss-item-arrow">›</span>
-                            </div>
-                        `).join('') : `
-                            <div class="ss-empty">
-                                <div class="ss-empty-icon">📭</div>
-                                <div class="ss-empty-title">No Structs Found</div>
-                                <div class="ss-empty-text">Import a JSON file to get started</div>
-                            </div>
-                        `}
-                    </div>
+                    `).join('') : `
+                        <div class="empty-state">
+                            <div class="empty-icon">\uD83D\uDCE5</div>
+                            <div class="empty-title">No Structs Found</div>
+                            <div class="empty-text">Import a JSON file to get started</div>
+                        </div>
+                    `}
+                </div>
+
+                <div class="sidebar-footer">
+                    <span>Structs loaded</span>
+                    <span class="sidebar-count" id="structCount">${allStructs.length}</span>
                 </div>
             </div>
 
@@ -724,32 +525,21 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     }
                 });
 
-                document.getElementById('clearSearch').addEventListener('click', () => {
-                    const input = document.getElementById('searchInput');
-                    input.value = '';
-                    input.dispatchEvent(new Event('input'));
-                    input.focus();
-                });
-
-                document.getElementById('btnImport').addEventListener('click', () => {
-                    vscode.postMessage({ command: 'importJson' });
-                });
-
-                document.getElementById('btnRefresh').addEventListener('click', () => {
-                    vscode.postMessage({ command: 'refresh' });
-                });
-
-                document.getElementById('btnHideZero').addEventListener('click', () => {
+                document.getElementById('hideZeroBtn').addEventListener('click', () => {
                     hideZero = !hideZero;
-                    const btn = document.getElementById('btnHideZero');
+                    const btn = document.getElementById('hideZeroBtn');
                     btn.classList.toggle('active', hideZero);
                     vscode.postMessage({ command: 'toggleHideZero', hideZero });
                 });
 
+                document.getElementById('collapseAllBtn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'refresh' });
+                });
+
                 document.getElementById('structList').addEventListener('click', (e) => {
-                    const item = e.target.closest('.ss-item');
+                    const item = e.target.closest('.struct-item');
                     if (item) {
-                        document.querySelectorAll('.ss-item').forEach(el => el.classList.remove('selected'));
+                        document.querySelectorAll('.struct-item').forEach(el => el.classList.remove('selected'));
                         item.classList.add('selected');
                         const structName = item.getAttribute('data-name');
                         selectedStruct = structName;
@@ -766,60 +556,44 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                         case 'searchResults':
                             allStructs = message.results;
                             updateStructList(message.results);
-                            updateStatus(message.results.length > 0, message.results.length);
                             break;
                         case 'updateData':
                             allStructs = message.structs;
                             updateStructList(message.structs);
-                            updateStatus(message.hasData, message.structs.length);
+                            const countEl = document.getElementById('structCount');
+                            if (countEl) countEl.textContent = message.structs.length;
                             break;
                     }
                 });
 
                 function updateStructList(structs) {
                     const list = document.getElementById('structList');
+                    const countEl = document.getElementById('structCount');
+                    if (!list) return;
+
                     if (structs.length === 0) {
                         list.innerHTML = \`
-                            <div class="ss-empty">
-                                <div class="ss-empty-icon">🔍</div>
-                                <div class="ss-empty-title">No Results</div>
-                                <div class="ss-empty-text">Try a different search term</div>
+                            <div class="empty-state">
+                                <div class="empty-icon">\uD83D\uDD0D</div>
+                                <div class="empty-title">No Results</div>
+                                <div class="empty-text">Try a different search term</div>
                             </div>
                         \`;
+                        if (countEl) countEl.textContent = '0';
                         return;
                     }
 
                     list.innerHTML = structs.map(s => \`
-                        <div class="ss-item" data-name="\${s.structKind.replace(/"/g, '&quot;')}">
-                            <span class="ss-item-icon struct"></span>
-                            <div class="ss-item-content">
-                                <div class="ss-item-name">\${s.structKind}</div>
-                                <div class="ss-item-meta">
-                                    <span class="ss-item-type struct">\${s.structKind}</span>
-                                    <span class="ss-item-bits">\${s.bits} bits</span>
-                                </div>
+                        <div class="struct-item \${selectedStruct === s.structKind ? 'selected' : ''}" data-name="\${s.structKind.replace(/"/g, '&quot;')}" data-is-union="\${s.isUnion}">
+                            <span class="struct-dot \${s.isUnion ? 'union' : 'struct'}"></span>
+                            <div class="struct-item-content">
+                                <div class="struct-item-name">\${s.structKind}</div>
+                                <div class="struct-item-meta">\${s.bits} bits · \${Math.ceil(s.bits / 8)} bytes</div>
                             </div>
-                            <span class="ss-item-arrow">›</span>
+                            <span class="struct-item-badge \${s.isUnion ? 'union' : 'struct'}">\${s.isUnion ? 'union' : 'struct'}</span>
                         </div>
                     \`).join('');
-                }
-
-                function updateStatus(hasData, count) {
-                    const card = document.getElementById('statusCard');
-                    const icon = card.querySelector('.ss-status-icon');
-                    const text = card.querySelector('.ss-status-text');
-                    const countEl = document.getElementById('structCount');
-
-                    if (hasData) {
-                        card.classList.remove('ss-status-empty');
-                        icon.textContent = '✓';
-                        text.textContent = 'Structs loaded';
-                    } else {
-                        card.classList.add('ss-status-empty');
-                        icon.textContent = '⚠';
-                        text.textContent = 'No struct data';
-                    }
-                    countEl.textContent = count;
+                    if (countEl) countEl.textContent = structs.length;
                 }
             </script>
         </body>

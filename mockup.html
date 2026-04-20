@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Struct Parser - UI Mockup</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 13px;
+            color: #cccccc;
+            background-color: #1e1e1e;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: 280px;
+            min-width: 280px;
+            background: #252526;
+            border-right: 1px solid #3c3c3c;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #3c3c3c;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #bbbbbb;
+        }
+
+        .sidebar-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .icon-btn {
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: transparent;
+            color: #999;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.15s;
+        }
+
+        .icon-btn:hover {
+            background: #3c3c3c;
+            color: #ccc;
+        }
+
+        .sidebar-search {
+            padding: 8px 12px;
+            border-bottom: 1px solid #3c3c3c;
+        }
+
+        .search-box {
+            position: relative;
+        }
+
+        .search-box svg {
+            position: absolute;
+            left: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #666;
+            width: 14px;
+            height: 14px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 6px 8px 6px 28px;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            background: #3c3c3c;
+            color: #ccc;
+            font-size: 12px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .search-input:focus {
+            border-color: #4EC9B0;
+        }
+
+        .search-input::placeholder {
+            color: #666;
+        }
+
+        .sidebar-toolbar {
+            padding: 6px 12px;
+            border-bottom: 1px solid #3c3c3c;
+            display: flex;
+            gap: 6px;
+        }
+
+        .toolbar-btn {
+            flex: 1;
+            padding: 5px 8px;
+            font-size: 11px;
+            font-weight: 500;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            background: transparent;
+            color: #999;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .toolbar-btn:hover {
+            background: #3c3c3c;
+            color: #ccc;
+        }
+
+        .toolbar-btn.active {
+            background: rgba(78, 201, 176, 0.15);
+            color: #4EC9B0;
+            border-color: rgba(78, 201, 176, 0.3);
+        }
+
+        .struct-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+
+        .struct-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .struct-list::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
+        }
+
+        .struct-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            cursor: pointer;
+            transition: background 0.1s;
+            border-left: 2px solid transparent;
+        }
+
+        .struct-item:hover {
+            background: #2a2d2e;
+        }
+
+        .struct-item.selected {
+            background: #37373d;
+            border-left-color: #4EC9B0;
+        }
+
+        .struct-item.selected .struct-item-name {
+            color: #fff;
+        }
+
+        .struct-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .struct-dot.struct { background: #4EC9B0; }
+        .struct-dot.union { background: #C586C0; }
+
+        .struct-item-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .struct-item-name {
+            font-size: 13px;
+            color: #ccc;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .struct-item-meta {
+            font-size: 11px;
+            color: #666;
+            margin-top: 1px;
+        }
+
+        .struct-item-badge {
+            font-size: 9px;
+            font-weight: 600;
+            padding: 1px 5px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        .struct-item-badge.struct {
+            background: rgba(78, 201, 176, 0.15);
+            color: #4EC9B0;
+        }
+
+        .struct-item-badge.union {
+            background: rgba(197, 134, 192, 0.15);
+            color: #C586C0;
+        }
+
+        .sidebar-footer {
+            padding: 8px 12px;
+            border-top: 1px solid #3c3c3c;
+            font-size: 11px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-count {
+            background: #3c3c3c;
+            padding: 1px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            color: #999;
+        }
+
+        /* ===== MAIN PANEL ===== */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #1e1e1e;
+        }
+
+        /* -- Top Bar -- */
+        .main-topbar {
+            padding: 12px 24px;
+            border-bottom: 1px solid #3c3c3c;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #252526;
+        }
+
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .topbar-struct-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(78, 201, 176, 0.12);
+            border-radius: 8px;
+            font-size: 18px;
+        }
+
+        .topbar-info h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .topbar-info p {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        .type-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .type-badge.struct {
+            background: rgba(78, 201, 176, 0.15);
+            color: #4EC9B0;
+        }
+
+        .type-badge.union {
+            background: rgba(197, 134, 192, 0.15);
+            color: #C586C0;
+        }
+
+        /* -- Hex Input Section -- */
+        .hex-section {
+            padding: 16px 24px;
+            border-bottom: 1px solid #3c3c3c;
+            background: #252526;
+        }
+
+        .hex-row {
+            display: flex;
+            gap: 12px;
+            align-items: stretch;
+        }
+
+        .hex-input-group {
+            flex: 1;
+            display: flex;
+            align-items: stretch;
+            border: 1px solid #3c3c3c;
+            border-radius: 6px;
+            overflow: hidden;
+            transition: border-color 0.15s;
+        }
+
+        .hex-input-group:focus-within {
+            border-color: #4EC9B0;
+        }
+
+        .hex-prefix {
+            display: flex;
+            align-items: center;
+            padding: 0 14px;
+            background: #1e1e1e;
+            color: #4EC9B0;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-weight: 700;
+            font-size: 15px;
+            border-right: 1px solid #3c3c3c;
+        }
+
+        .hex-input {
+            flex: 1;
+            padding: 10px 14px;
+            background: #3c3c3c;
+            border: none;
+            color: #fff;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 15px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            outline: none;
+        }
+
+        .hex-input::placeholder {
+            color: #555;
+            font-weight: 400;
+        }
+
+        .hex-apply-btn {
+            padding: 10px 20px;
+            background: #4EC9B0;
+            color: #1e1e1e;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .hex-apply-btn:hover {
+            background: #3DB8A0;
+        }
+
+        .hex-info {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #666;
+            display: flex;
+            gap: 16px;
+        }
+
+        .hex-info span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .hex-info .label {
+            color: #888;
+        }
+
+        .hex-info .value {
+            color: #4EC9B0;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-weight: 500;
+        }
+
+        /* -- Fields Tree -- */
+        .fields-section {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .fields-header {
+            padding: 10px 24px;
+            border-bottom: 1px solid #3c3c3c;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #252526;
+        }
+
+        .fields-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .fields-count {
+            background: rgba(78, 201, 176, 0.15);
+            color: #4EC9B0;
+            padding: 1px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .fields-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .fields-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+
+        .fields-tree::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .fields-tree::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
+        }
+
+        /* Tree Node */
+        .tree-node {
+            user-select: none;
+        }
+
+        .tree-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 24px;
+            padding-left: calc(24px + var(--depth, 0) * 20px);
+            cursor: pointer;
+            transition: background 0.1s;
+            border-left: 2px solid transparent;
+        }
+
+        .tree-row:hover {
+            background: #2a2d2e;
+        }
+
+        .tree-row.selected {
+            background: #37373d;
+            border-left-color: #4EC9B0;
+        }
+
+        .tree-expand {
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #666;
+            transition: transform 0.15s;
+            flex-shrink: 0;
+        }
+
+        .tree-expand.expanded {
+            transform: rotate(90deg);
+        }
+
+        .tree-expand.leaf {
+            visibility: hidden;
+        }
+
+        .tree-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .tree-icon.struct { background: #4EC9B0; }
+        .tree-icon.union { background: #C586C0; }
+        .tree-icon.uint { background: #9CDCFE; }
+        .tree-icon.bool { background: #569CD6; }
+        .tree-icon.anon { background: #666; }
+
+        .tree-name {
+            font-size: 13px;
+            color: #ddd;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 120px;
+        }
+
+        .tree-type {
+            font-size: 10px;
+            font-weight: 500;
+            padding: 1px 6px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        .tree-type.struct {
+            background: rgba(78, 201, 176, 0.12);
+            color: #4EC9B0;
+        }
+
+        .tree-type.union {
+            background: rgba(197, 134, 192, 0.12);
+            color: #C586C0;
+        }
+
+        .tree-type.uint,
+        .tree-type.int {
+            background: rgba(156, 220, 254, 0.1);
+            color: #9CDCFE;
+        }
+
+        .tree-type.anon {
+            background: rgba(100, 100, 100, 0.2);
+            color: #888;
+        }
+
+        .tree-offset {
+            font-size: 10px;
+            color: #555;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            flex-shrink: 0;
+            min-width: 30px;
+            text-align: right;
+        }
+
+        .tree-bits {
+            font-size: 10px;
+            color: #555;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            flex-shrink: 0;
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .tree-value {
+            min-width: 60px;
+            padding: 3px 8px;
+            background: #3c3c3c;
+            border: 1px solid #4c4c4c;
+            border-radius: 4px;
+            color: #fff;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 12px;
+            font-weight: 500;
+            text-align: right;
+            outline: none;
+            transition: border-color 0.15s;
+            flex-shrink: 0;
+            -moz-appearance: textfield;
+            appearance: textfield;
+        }
+
+        .tree-value::-webkit-outer-spin-button,
+        .tree-value::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+        }
+
+        .tree-value:focus {
+            border-color: #4EC9B0;
+        }
+
+        .tree-hex {
+            min-width: 55px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 12px;
+            color: #75BEFF;
+            text-align: right;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+
+        .tree-children {
+            overflow: hidden;
+        }
+
+        .tree-children.collapsed {
+            display: none;
+        }
+
+        /* -- Empty State -- */
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 24px;
+            text-align: center;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #aaa;
+            margin-bottom: 8px;
+        }
+
+        .empty-text {
+            font-size: 13px;
+            color: #666;
+            max-width: 280px;
+            line-height: 1.5;
+        }
+
+        .empty-steps {
+            margin-top: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            text-align: left;
+            width: 100%;
+            max-width: 280px;
+        }
+
+        .empty-step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 6px;
+        }
+
+        .empty-step-num {
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(78, 201, 176, 0.12);
+            color: #4EC9B0;
+            border-radius: 50%;
+            font-size: 11px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .empty-step-text {
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        /* ===== RESIZE HANDLE ===== */
+        .resize-handle {
+            width: 4px;
+            background: transparent;
+            cursor: col-resize;
+            transition: background 0.15s;
+        }
+
+        .resize-handle:hover {
+            background: #4EC9B0;
+        }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .struct-item { animation: fadeIn 0.15s ease; }
+    </style>
+</head>
+<body>
+
+<!-- ===== SIDEBAR ===== -->
+<div class="sidebar">
+    <div class="sidebar-header">
+        <span class="sidebar-title">Struct Parser</span>
+    </div>
+
+    <div class="sidebar-search">
+        <div class="search-box">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z"/></svg>
+            <input type="text" class="search-input" placeholder="Search structs..." id="sidebarSearch">
+        </div>
+    </div>
+
+    <div class="sidebar-toolbar">
+        <button class="toolbar-btn" id="hideZeroBtn" onclick="toggleHideZero()">
+            <span>👁</span> Hide Zero
+        </button>
+        <button class="toolbar-btn" onclick="collapseAll()">
+            <span>⊟</span> Collapse All
+        </button>
+    </div>
+
+    <div class="struct-list" id="structList">
+        <!-- Populated by JS -->
+    </div>
+
+    <div class="sidebar-footer">
+        <span>Structs loaded</span>
+        <span class="sidebar-count" id="structCount">0</span>
+    </div>
+</div>
+
+<div class="resize-handle"></div>
+
+<!-- ===== MAIN PANEL ===== -->
+<div class="main" id="mainPanel">
+    <!-- Empty state (shown when no struct selected) -->
+    <div class="empty-state" id="emptyState">
+        <div class="empty-icon">⚡</div>
+        <div class="empty-title">No Struct Selected</div>
+        <div class="empty-text">Select a struct from the sidebar to view and edit its binary fields</div>
+        <div class="empty-steps">
+            <div class="empty-step">
+                <span class="empty-step-num">1</span>
+                <span class="empty-step-text">Import a JSON file with struct definitions</span>
+            </div>
+            <div class="empty-step">
+                <span class="empty-step-num">2</span>
+                <span class="empty-step-text">Select a struct from the sidebar</span>
+            </div>
+            <div class="empty-step">
+                <span class="empty-step-num">3</span>
+                <span class="empty-step-text">Enter hex value or edit fields directly</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content (shown when struct selected) -->
+    <div id="contentPanel" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
+        <!-- Top Bar -->
+        <div class="main-topbar">
+            <div class="topbar-left">
+                <div class="topbar-struct-icon">⚡</div>
+                <div class="topbar-info">
+                    <h2 id="structName">ComplexDevice <span class="type-badge struct">struct</span></h2>
+                    <p id="structMeta">64 bits · 8 bytes</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hex Input -->
+        <div class="hex-section">
+            <div class="hex-row">
+                <div class="hex-input-group">
+                    <span class="hex-prefix">0x</span>
+                    <input type="text" class="hex-input" placeholder="Enter hex value..." id="hexInput" value="0000000000000000">
+                </div>
+                <button class="hex-apply-btn" onclick="applyHex()">Parse</button>
+            </div>
+            <div class="hex-info">
+                <span><span class="label">Value:</span> <span class="value" id="hexDisplay">0x0000000000000000</span></span>
+                <span><span class="label">Bits:</span> <span class="value" id="bitsDisplay">64</span></span>
+                <span><span class="label">Bytes:</span> <span class="value" id="bytesDisplay">8</span></span>
+            </div>
+        </div>
+
+        <!-- Fields Header -->
+        <div class="fields-header">
+            <div class="fields-title">
+                <span>Fields</span>
+                <span class="fields-count" id="fieldsCount">0</span>
+            </div>
+            <div class="fields-actions">
+                <button class="icon-btn" title="Expand All" onclick="expandAll()">⊞</button>
+                <button class="icon-btn" title="Collapse All" onclick="collapseAllTree()">⊟</button>
+            </div>
+        </div>
+
+        <!-- Fields Tree -->
+        <div class="fields-tree" id="fieldsTree">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+</div>
+
+<script>
+const structsData = {
+    structs: [
+        { name: "", type: "A", bits: 8, fields: [
+            { name: "a", type: "uint7", bits: 7, offset: 0 },
+            { name: "b", type: "uint1", bits: 1, offset: 7 }
+        ]},
+        { name: "", type: "B", bits: 8, fields: [
+            { name: "c", type: "uint4", bits: 4, offset: 0 },
+            { name: "d", type: "uint4", bits: 4, offset: 4 }
+        ]},
+        { name: "", type: "C", bits: 16, fields: [
+            { name: "ref_a", type: "A", bits: 8, offset: 0, fields: [
+                { name: "a", type: "uint7", bits: 7, offset: 0 },
+                { name: "b", type: "uint1", bits: 1, offset: 7 }
+            ]},
+            { name: "ref_b", type: "B", bits: 8, offset: 8, fields: [
+                { name: "c", type: "uint4", bits: 4, offset: 8 },
+                { name: "d", type: "uint4", bits: 4, offset: 12 }
+            ]}
+        ]},
+        { name: "", type: "D", bits: 32, fields: [
+            { name: "g", type: "", bits: 16, offset: 0, fields: [
+                { name: "e", type: "uint10", bits: 10, offset: 0 },
+                { name: "f", type: "uint6", bits: 6, offset: 10 }
+            ]},
+            { name: "j", type: "", bits: 16, offset: 16, fields: [
+                { name: "h", type: "uint16", bits: 16, offset: 16 },
+                { name: "i", type: "uint16", bits: 16, offset: 16 }
+            ]}
+        ]},
+        { name: "", type: "NestedOuter", bits: 56, fields: [
+            { name: "header", type: "uint8", bits: 8, offset: 0 },
+            { name: "position", type: "", bits: 32, offset: 8, fields: [
+                { name: "x", type: "uint8", bits: 8, offset: 8 },
+                { name: "y", type: "uint8", bits: 8, offset: 16 },
+                { name: "color", type: "", bits: 16, offset: 24, fields: [
+                    { name: "red", type: "uint4", bits: 4, offset: 24 },
+                    { name: "green", type: "uint4", bits: 4, offset: 28 },
+                    { name: "blue", type: "uint4", bits: 4, offset: 32 },
+                    { name: "alpha", type: "uint4", bits: 4, offset: 36 }
+                ]}
+            ]},
+            { name: "footer", type: "uint16", bits: 16, offset: 40 }
+        ]},
+        { name: "", type: "ComplexDevice", bits: 64, fields: [
+            { name: "device_id", type: "uint8", bits: 8, offset: 0 },
+            { name: "status", type: "", bits: 16, offset: 8, fields: [
+                { name: "status_code", type: "uint16", bits: 16, offset: 8 },
+                { name: "flags", type: "", bits: 16, offset: 8, fields: [
+                    { name: "busy", type: "uint1", bits: 1, offset: 8 },
+                    { name: "error", type: "uint1", bits: 1, offset: 9 },
+                    { name: "ready", type: "uint1", bits: 1, offset: 10 },
+                    { name: "reserved", type: "uint13", bits: 13, offset: 11 }
+                ]}
+            ]},
+            { name: "data", type: "", bits: 32, offset: 24, fields: [
+                { name: "raw_data", type: "uint32", bits: 32, offset: 24 },
+                { name: "bytes", type: "", bits: 32, offset: 24, fields: [
+                    { name: "byte0", type: "uint8", bits: 8, offset: 24 },
+                    { name: "byte1", type: "uint8", bits: 8, offset: 32 },
+                    { name: "byte2", type: "uint8", bits: 8, offset: 40 },
+                    { name: "byte3", type: "uint8", bits: 8, offset: 48 }
+                ]},
+                { name: "words", type: "", bits: 32, offset: 24, fields: [
+                    { name: "word0", type: "uint16", bits: 16, offset: 24 },
+                    { name: "word1", type: "uint16", bits: 16, offset: 40 }
+                ]}
+            ]},
+            { name: "checksum", type: "uint8", bits: 8, offset: 56 }
+        ]},
+        { name: "", type: "DeepNested", bits: 32, fields: [
+            { name: "level1", type: "", bits: 32, offset: 0, fields: [
+                { name: "middle_layer", type: "", bits: 16, offset: 0, fields: [
+                    { name: "innermost", type: "", bits: 8, offset: 0, fields: [
+                        { name: "flag", type: "uint1", bits: 1, offset: 0 },
+                        { name: "reserved", type: "uint7", bits: 7, offset: 1 }
+                    ]},
+                    { name: "middle", type: "uint8", bits: 8, offset: 8 }
+                ]},
+                { name: "outer", type: "uint16", bits: 16, offset: 16 }
+            ]}
+        ]},
+        { name: "", type: "DeviceInfo", bits: 80, fields: [
+            { name: "version", type: "Version", bits: 32, offset: 0, fields: [
+                { name: "major", type: "uint8", bits: 8, offset: 0 },
+                { name: "minor", type: "uint8", bits: 8, offset: 8 },
+                { name: "patch", type: "uint16", bits: 16, offset: 16 }
+            ]},
+            { name: "status", type: "Status", bits: 16, offset: 32, fields: [
+                { name: "code", type: "uint8", bits: 8, offset: 32 },
+                { name: "flags", type: "uint8", bits: 8, offset: 40 }
+            ]},
+            { name: "device_id", type: "uint32", bits: 32, offset: 48 }
+        ]},
+        { name: "", type: "DataPacket", bits: 96, fields: [
+            { name: "header_version", type: "Version", bits: 32, offset: 0, fields: [
+                { name: "major", type: "uint8", bits: 8, offset: 0 },
+                { name: "minor", type: "uint8", bits: 8, offset: 8 },
+                { name: "patch", type: "uint16", bits: 16, offset: 16 }
+            ]},
+            { name: "length", type: "uint16", bits: 16, offset: 32 },
+            { name: "integrity", type: "", bits: 32, offset: 48, fields: [
+                { name: "checksum", type: "uint32", bits: 32, offset: 48 },
+                { name: "crc_parts", type: "", bits: 32, offset: 48, fields: [
+                    { name: "crc_low", type: "uint16", bits: 16, offset: 48 },
+                    { name: "crc_high", type: "uint16", bits: 16, offset: 64 }
+                ]}
+            ]},
+            { name: "packet_status", type: "Status", bits: 16, offset: 80, fields: [
+                { name: "code", type: "uint8", bits: 8, offset: 80 },
+                { name: "flags", type: "uint8", bits: 8, offset: 88 }
+            ]}
+        ]}
+    ],
+    unions: [
+        { name: "", type: "DataValue", bits: 32, fields: [
+            { name: "raw", type: "uint32", bits: 32, offset: 0 },
+            { name: "words", type: "", bits: 32, offset: 0, fields: [
+                { name: "low", type: "uint16", bits: 16, offset: 0 },
+                { name: "high", type: "uint16", bits: 16, offset: 16 }
+            ]}
+        ]},
+        { name: "", type: "ConfigValue", bits: 32, fields: [
+            { name: "raw", type: "uint32", bits: 32, offset: 0 },
+            { name: "parts", type: "", bits: 32, offset: 0, fields: [
+                { name: "low", type: "uint16", bits: 16, offset: 0 },
+                { name: "high", type: "uint16", bits: 16, offset: 16 }
+            ]}
+        ]}
+    ]
+};
+
+let selectedStruct = null;
+let hideZero = false;
+let expandedNodes = new Set();
+
+function getAllStructs() {
+    return [...structsData.structs, ...structsData.unions];
+}
+
+function isStruct(type) {
+    return structsData.structs.some(s => s.type === type);
+}
+
+function isUnion(type) {
+    return structsData.unions.some(s => s.type === type);
+}
+
+function isKnownType(type) {
+    return isStruct(type) || isUnion(type);
+}
+
+function getTypeClass(type) {
+    if (isStruct(type)) return 'struct';
+    if (isUnion(type)) return 'union';
+    if (type === '') return 'anon';
+    if (type.startsWith('uint') || type.startsWith('int')) return 'uint';
+    if (type === 'bool') return 'bool';
+    return 'uint';
+}
+
+function countLeafFields(fields) {
+    let count = 0;
+    fields.forEach(f => {
+        if (f.fields && f.fields.length > 0) {
+            count += countLeafFields(f.fields);
+        } else {
+            count++;
+        }
+    });
+    return count;
+}
+
+function renderSidebar() {
+    const list = document.getElementById('structList');
+    const allStructs = getAllStructs();
+    
+    list.innerHTML = allStructs.map(s => {
+        const kind = isStruct(s.type) ? 'struct' : 'union';
+        const isSelected = selectedStruct && selectedStruct.type === s.type;
+        return `
+            <div class="struct-item ${isSelected ? 'selected' : ''}" data-type="${s.type}" onclick="selectStruct('${s.type}')">
+                <span class="struct-dot ${kind}"></span>
+                <div class="struct-item-content">
+                    <div class="struct-item-name">${s.type}</div>
+                    <div class="struct-item-meta">${s.bits} bits · ${Math.ceil(s.bits / 8)} bytes</div>
+                </div>
+                <span class="struct-item-badge ${kind}">${kind}</span>
+            </div>
+        `;
+    }).join('');
+
+    document.getElementById('structCount').textContent = allStructs.length;
+}
+
+function selectStruct(type) {
+    const allStructs = getAllStructs();
+    selectedStruct = allStructs.find(s => s.type === type);
+    
+    if (!selectedStruct) return;
+
+    expandedNodes.clear();
+    autoExpandFirstLevel(selectedStruct.fields, '');
+
+    renderSidebar();
+    renderMainPanel();
+}
+
+function autoExpandFirstLevel(fields, prefix) {
+    fields.forEach(f => {
+        const path = prefix ? prefix + '.' + f.name : f.name;
+        if (f.fields && f.fields.length > 0) {
+            expandedNodes.add(path);
+        }
+    });
+}
+
+function renderMainPanel() {
+    if (!selectedStruct) {
+        document.getElementById('emptyState').style.display = 'flex';
+        document.getElementById('contentPanel').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('contentPanel').style.display = 'flex';
+
+    const kind = isStruct(selectedStruct.type) ? 'struct' : 'union';
+    document.getElementById('structName').innerHTML = 
+        `${selectedStruct.type} <span class="type-badge ${kind}">${kind}</span>`;
+    document.getElementById('structMeta').textContent = 
+        `${selectedStruct.bits} bits · ${Math.ceil(selectedStruct.bits / 8)} bytes`;
+
+    const hexDigits = Math.ceil(selectedStruct.bits / 4);
+    document.getElementById('hexInput').value = '0'.repeat(hexDigits);
+    document.getElementById('hexDisplay').textContent = '0x' + '0'.repeat(hexDigits);
+    document.getElementById('bitsDisplay').textContent = selectedStruct.bits;
+    document.getElementById('bytesDisplay').textContent = Math.ceil(selectedStruct.bits / 8);
+
+    const leafCount = countLeafFields(selectedStruct.fields);
+    document.getElementById('fieldsCount').textContent = leafCount;
+
+    renderTree();
+}
+
+function renderTree() {
+    if (!selectedStruct) return;
+    const tree = document.getElementById('fieldsTree');
+    tree.innerHTML = renderTreeNodes(selectedStruct.fields, 0, '');
+    attachTreeListeners();
+}
+
+function renderTreeNodes(fields, depth, parentPath) {
+    let html = '';
+    fields.forEach(field => {
+        const path = parentPath ? parentPath + '.' + field.name : field.name;
+        const hasChildren = field.fields && field.fields.length > 0;
+        const isExpanded = expandedNodes.has(path);
+        const typeClass = getTypeClass(field.type);
+        const value = 0;
+        const hex = '0x0';
+
+        if (hideZero && value === 0 && !hasChildren) return;
+
+        html += `<div class="tree-node">`;
+        html += `<div class="tree-row" style="--depth: ${depth}" data-path="${path}">`;
+        html += `<span class="tree-expand ${isExpanded ? 'expanded' : ''} ${!hasChildren ? 'leaf' : ''}" data-path="${path}">▶</span>`;
+        html += `<span class="tree-icon ${typeClass}"></span>`;
+        html += `<span class="tree-name">${field.name}</span>`;
+        html += `<span class="tree-type ${typeClass}">${field.type || 'anon'}</span>`;
+        html += `<span class="tree-offset">@${field.offset}</span>`;
+        html += `<span class="tree-bits">${field.bits}b</span>`;
+        
+        if (!hasChildren) {
+            html += `<input type="number" class="tree-value" value="${value}" min="0" max="${(1 << field.bits) - 1}" data-path="${path}">`;
+            html += `<span class="tree-hex">${hex}</span>`;
+        } else {
+            html += `<span style="min-width:60px; flex-shrink:0;"></span>`;
+            html += `<span style="min-width:55px; flex-shrink:0;"></span>`;
+        }
+        
+        html += `</div>`;
+
+        if (hasChildren) {
+            html += `<div class="tree-children ${isExpanded ? '' : 'collapsed'}" id="children-${path}">`;
+            html += renderTreeNodes(field.fields, depth + 1, path);
+            html += `</div>`;
+        }
+
+        html += `</div>`;
+    });
+    return html;
+}
+
+function attachTreeListeners() {
+    document.querySelectorAll('.tree-expand:not(.leaf)').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const path = el.dataset.path;
+            if (expandedNodes.has(path)) {
+                expandedNodes.delete(path);
+            } else {
+                expandedNodes.add(path);
+            }
+            renderTree();
+        });
+    });
+}
+
+function toggleHideZero() {
+    hideZero = !hideZero;
+    const btn = document.getElementById('hideZeroBtn');
+    btn.classList.toggle('active', hideZero);
+    renderTree();
+}
+
+function expandAll() {
+    if (!selectedStruct) return;
+    const addPaths = (fields, prefix) => {
+        fields.forEach(f => {
+            const path = prefix ? prefix + '.' + f.name : f.name;
+            if (f.fields && f.fields.length > 0) {
+                expandedNodes.add(path);
+                addPaths(f.fields, path);
+            }
+        });
+    };
+    addPaths(selectedStruct.fields, '');
+    renderTree();
+}
+
+function collapseAllTree() {
+    expandedNodes.clear();
+    renderTree();
+}
+
+function collapseAll() {
+    expandedNodes.clear();
+    if (selectedStruct) renderTree();
+}
+
+function applyHex() {
+    // Mock - just for demo
+    alert('Parse hex: 0x' + document.getElementById('hexInput').value);
+}
+
+// Search
+document.getElementById('sidebarSearch').addEventListener('input', (e) => {
+    const term = e.target.value.toLowerCase();
+    const items = document.querySelectorAll('.struct-item');
+    items.forEach(item => {
+        const type = item.dataset.type.toLowerCase();
+        item.style.display = type.includes(term) ? '' : 'none';
+    });
+});
+
+// Init
+renderSidebar();
+
+// Auto-select ComplexDevice for demo
+selectStruct('ComplexDevice');
+</script>
+
+</body>
+</html>

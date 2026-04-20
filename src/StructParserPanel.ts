@@ -31,13 +31,6 @@ interface ParsedField extends StructField {
     fields?: ParsedField[];
 }
 
-interface HistoryItem {
-    timestamp: number;
-    structName: string;
-    hexValue: string;
-    description?: string;
-}
-
 export class StructParserPanel {
     public static panels: Map<string, StructParserPanel> = new Map();
     public static readonly viewType = 'structParser';
@@ -55,14 +48,12 @@ export class StructParserPanel {
     } | null = null;
 
     public static createOrShow(extensionUri: vscode.Uri, structName?: string): StructParserPanel {
-        // If struct name provided and panel exists, reveal it
         if (structName && StructParserPanel.panels.has(structName)) {
             const panel = StructParserPanel.panels.get(structName)!;
             panel._panel.reveal(vscode.ViewColumn.One);
             return panel;
         }
 
-        // Create new panel
         const panel = vscode.window.createWebviewPanel(
             StructParserPanel.viewType,
             structName ? structName : 'Struct Parser',
@@ -76,7 +67,6 @@ export class StructParserPanel {
 
         const parserPanel = new StructParserPanel(panel, extensionUri);
 
-        // Store panel reference if struct name provided
         if (structName) {
             StructParserPanel.panels.set(structName, parserPanel);
             panel.onDidDispose(() => {
@@ -97,7 +87,6 @@ export class StructParserPanel {
 
         this._panel.webview.onDidReceiveMessage(
             async message => {
-                console.log('[StructParser] Received message:', message.command, message);
                 switch (message.command) {
                     case 'parse':
                         this._parseHexValue(message.hexValue, message.structName);
@@ -116,46 +105,6 @@ export class StructParserPanel {
             null,
             this._disposables
         );
-    }
-
-    private async _importJsonFile() {
-        const result = await vscode.window.showOpenDialog({
-            canSelectFiles: true,
-            canSelectFolders: false,
-            canSelectMany: false,
-            filters: {
-                'JSON files': ['json'],
-                'All files': ['*']
-            },
-            title: 'Select Struct Parser JSON File'
-        });
-
-        if (result && result[0]) {
-            try {
-                const content = fs.readFileSync(result[0].fsPath, 'utf-8');
-                this._structData = JSON.parse(content);
-                
-                const config = vscode.workspace.getConfiguration('structParser');
-                await config.update('jsonPath', result[0].fsPath, true);
-                
-                if (!this._structData) {
-                    vscode.window.showErrorMessage('Invalid JSON format');
-                    return;
-                }
-                
-                const structNames = [...this._structData.structs, ...this._structData.unions].map(s => s.type);
-                
-                this._panel.webview.postMessage({
-                    command: 'jsonImported',
-                    structNames: structNames,
-                    filePath: result[0].fsPath
-                });
-                
-                vscode.window.showInformationMessage(`Loaded ${structNames.length} structs from ${path.basename(result[0].fsPath)}`);
-            } catch (error) {
-                vscode.window.showErrorMessage(`Failed to load JSON: ${error}`);
-            }
-        }
     }
 
     private _loadStructData() {
@@ -184,7 +133,6 @@ export class StructParserPanel {
                             this._structData = JSON.parse(content);
                             break;
                         } catch (error) {
-                            // Continue to next path
                         }
                     }
                 }
@@ -193,8 +141,6 @@ export class StructParserPanel {
     }
 
     private _parseHexValue(hexValue: string, structName: string) {
-        console.log('[StructParser] Parse called:', { hexValue, structName });
-
         if (!structName) {
             return;
         }
@@ -222,30 +168,24 @@ export class StructParserPanel {
         if (!hexClean) {
             return;
         }
-        const inputBits = hexClean.length * 4; // 每个16进制字符=4bit
+        const inputBits = hexClean.length * 4;
         let fullValue = BigInt('0x' + hexClean);
         
         const structBits = structDef.bits;
         
-        // 处理位宽对齐：不足补0，超出截断
         let adjustedValue = fullValue;
         let wasAdjusted = false;
         
         if (inputBits < structBits) {
-            // 输入不足：在低位补0（左移差值）
             const padding = structBits - inputBits;
             adjustedValue = fullValue << BigInt(padding);
             wasAdjusted = true;
-            console.log(`[StructParser] Padding ${padding} bits: 0x${hexClean} -> 0x${adjustedValue.toString(16).toUpperCase()}`);
         } else if (inputBits > structBits) {
-            // 输入超出：保留高位（右移差值）
             const excess = inputBits - structBits;
             adjustedValue = fullValue >> BigInt(excess);
             wasAdjusted = true;
-            console.log(`[StructParser] Truncating ${excess} bits: 0x${hexClean} -> 0x${adjustedValue.toString(16).toUpperCase()}`);
         }
         
-        // 确保值不超过结构体范围
         const maxValue = (BigInt(1) << BigInt(structBits)) - BigInt(1);
         if (adjustedValue > maxValue) {
             adjustedValue = adjustedValue & maxValue;
@@ -263,7 +203,6 @@ export class StructParserPanel {
             binaryValue: binaryValue
         };
 
-        // 计算实际使用的16进制值
         const actualHex = '0x' + adjustedValue.toString(16).toUpperCase().padStart(Math.ceil(structBits / 4), '0');
 
         this._panel.webview.postMessage({
@@ -280,7 +219,6 @@ export class StructParserPanel {
 
     private _parseFields(fields: StructField[], binaryValue: string, fullValue: bigint): ParsedField[] {
         return fields.map(field => {
-            // offset 是从 MSB(bit 0) 开始的绝对 bit 偏移
             const startPos = field.offset;
             const endPos = field.offset + field.bits;
             const fieldBits = binaryValue.substring(startPos, endPos);
@@ -306,7 +244,6 @@ export class StructParserPanel {
     private _updateFieldValue(fieldPath: string[], newValue: number) {
         if (!this._currentParsedData) return;
 
-        // 找到目标叶子字段（通过递归按 name 查找）
         const findField = (fields: ParsedField[], path: string[]): ParsedField | null => {
             const name = path[0];
             const field = fields.find(f => f.name === name);
@@ -325,7 +262,6 @@ export class StructParserPanel {
             return;
         }
 
-        // 按 offset 和 bits 直接替换顶层 binaryValue 对应段
         const binaryStr = this._currentParsedData.binaryValue;
         const newBits = newValue.toString(2).padStart(targetField.bits, '0');
         const newBinaryStr =
@@ -335,7 +271,6 @@ export class StructParserPanel {
 
         this._currentParsedData.binaryValue = newBinaryStr;
 
-        // 用新 binaryValue 重新解析全部字段
         const newBigInt = BigInt('0b' + newBinaryStr);
         this._currentParsedData.fields = this._parseFields(
             this._currentParsedData.struct.fields,
@@ -357,16 +292,6 @@ export class StructParserPanel {
             fullHexValue: newHexValue,
             adjustedValue: false
         });
-    }
-
-    private _recalculateHexValue() {
-        // 已由 _updateFieldValue 直接维护，此方法保留为兼容占位
-        if (!this._currentParsedData) return;
-        const binaryStr = this._currentParsedData.binaryValue;
-        if (binaryStr) {
-            const val = BigInt('0b' + binaryStr);
-            console.log(`[StructParser] Recalculated: 0x${val.toString(16).toUpperCase()}`);
-        }
     }
 
     private _searchFields(searchTerm: string) {
@@ -396,90 +321,6 @@ export class StructParserPanel {
             command: 'searchResults',
             results: results
         });
-    }
-
-    private _exportResults(format: 'csv' | 'json' | 'markdown') {
-        if (!this._currentParsedData) {
-            vscode.window.showWarningMessage('No data to export');
-            return;
-        }
-
-        let content = '';
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
-        switch (format) {
-            case 'csv':
-                content = this._exportToCsv();
-                break;
-            case 'json':
-                content = JSON.stringify(this._currentParsedData, null, 2);
-                break;
-            case 'markdown':
-                content = this._exportToMarkdown();
-                break;
-        }
-
-        const defaultUri = vscode.Uri.file(`struct-export-${timestamp}.${format}`);
-        vscode.window.showSaveDialog({
-            defaultUri,
-            filters: {
-                [format.toUpperCase()]: [format]
-            }
-        }).then(uri => {
-            if (uri) {
-                fs.writeFileSync(uri.fsPath, content);
-                vscode.window.showInformationMessage(`Exported to ${path.basename(uri.fsPath)}`);
-            }
-        });
-    }
-
-    private _exportToCsv(): string {
-        if (!this._currentParsedData) return '';
-
-        let csv = 'Field,Type,Bits,Value,Hex,Binary\n';
-        
-        const addFields = (fields: ParsedField[], prefix: string) => {
-            fields.forEach(field => {
-                const name = prefix ? `${prefix}.${field.name}` : field.name;
-                if (field.fields && field.fields.length > 0) {
-                    addFields(field.fields as ParsedField[], name);
-                } else {
-                    csv += `"${name}","${field.type}",${field.bits},${field.value},"${field.hex}","${field.binary}"\n`;
-                }
-            });
-        };
-
-        addFields(this._currentParsedData.fields, '');
-        return csv;
-    }
-
-    private _exportToMarkdown(): string {
-        if (!this._currentParsedData) return '';
-
-        let md = `# Struct Parse Result\n\n`;
-        md += `**Struct:** ${this._currentParsedData.struct.type}\n\n`;
-        md += `**Hex Value:** ${this._currentParsedData.hexValue}\n\n`;
-        md += `| Field | Type | Bits | Value | Hex | Binary |\n`;
-        md += `|-------|------|------|-------|-----|--------|\n`;
-
-        const addFields = (fields: ParsedField[], prefix: string) => {
-            fields.forEach(field => {
-                const name = prefix ? `${prefix}.${field.name}` : field.name;
-                if (field.fields && field.fields.length > 0) {
-                    addFields(field.fields as ParsedField[], name);
-                } else {
-                    md += `| ${name} | ${field.type} | ${field.bits} | ${field.value} | ${field.hex} | ${field.binary} |\n`;
-                }
-            });
-        };
-
-        addFields(this._currentParsedData.fields, '');
-        return md;
-    }
-
-    private _copyToClipboard(text: string) {
-        vscode.env.clipboard.writeText(text);
-        vscode.window.showInformationMessage('Copied to clipboard!');
     }
 
     public parseHexValue(hexValue: string) {
@@ -516,45 +357,8 @@ export class StructParserPanel {
         });
     }
 
-    private _renderFieldList(fields: StructField[], level: number = 0): string {
-        let html = '';
-        fields.forEach(field => {
-            const indent = level * 16;
-            const hasChildren = field.fields && field.fields.length > 0;
-            const fieldId = field.name.replace(/[^a-zA-Z0-9]/g, '_');
-            
-            html += `
-                <div class="sp-field-row" style="padding-left: ${indent}px" data-field="${field.name}">
-                    <div class="sp-field-main">
-                        <span class="sp-expand-icon ${hasChildren ? 'expandable' : ''}" data-field="${field.name}">${hasChildren ? '▶' : ''}</span>
-                        <span class="sp-type-indicator ${field.type}"></span>
-                        <span class="sp-field-name">${field.name}</span>
-                        <span class="sp-field-type ${field.type}">${field.type}</span>
-                        <span class="sp-field-meta">
-                            <span class="sp-field-bits">${field.bits}b</span>
-                            <span class="sp-field-offset">@${field.offset}</span>
-                        </span>
-                    </div>
-                    <div class="sp-field-values">
-                        <span class="sp-field-dec" id="val-dec-${fieldId}">-</span>
-                        <span class="sp-field-hex" id="val-hex-${fieldId}">-</span>
-                        <input type="number" class="sp-field-input" id="input-${fieldId}" 
-                            min="0" max="${(1 << field.bits) - 1}" placeholder="-" 
-                            data-field="${field.name}" data-bits="${field.bits}">
-                    </div>
-                </div>
-            `;
-            
-            if (hasChildren) {
-                html += this._renderFieldList(field.fields!, level + 1);
-            }
-        });
-        return html;
-    }
-
     private _update() {
         const webview = this._panel.webview;
-        // Update panel title to struct name if available
         this._panel.title = this._currentStruct?.type || 'Struct Parser';
         this._panel.webview.html = this._getHtmlForWebview(webview);
     }
@@ -562,8 +366,9 @@ export class StructParserPanel {
     private _getHtmlForWebview(webview: vscode.Webview): string {
         const hasStruct = this._currentStruct !== null;
         const structName = this._currentStruct?.type || '';
-        const structType = this._currentStruct?.type || '';
-        const structSize = this._currentStruct?.bits || 0;
+        const structBits = this._currentStruct?.bits || 0;
+        const structBytes = Math.ceil(structBits / 8);
+        const isUnion = this._structData?.unions?.some(u => u.type === structName) ?? false;
 
         return `<!DOCTYPE html>
         <html lang="en">
@@ -571,742 +376,568 @@ export class StructParserPanel {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Struct Parser</title>
-6            <style>
-                :root {
-                    --primary: #4EC9B0;
-                    --primary-hover: #3DB8A0;
-                    --primary-bg: rgba(78, 201, 176, 0.12);
-                    --primary-border: rgba(78, 201, 176, 0.3);
-                    --secondary: #C586C0;
-                    --accent: #75BEFF;
-                    --text-primary: var(--vscode-foreground);
-                    --text-secondary: var(--vscode-descriptionForeground);
-                    --text-muted: var(--vscode-textPreformat-foreground);
-                    --bg: var(--vscode-editor-background);
-                    --panel-bg: var(--vscode-panel-background);
-                    --border: var(--vscode-panel-border);
-                    --input-bg: var(--vscode-input-background);
-                    --input-border: var(--vscode-input-border);
-                    --hover-bg: var(--vscode-list-hoverBackground);
-                    --selection-bg: var(--vscode-list-activeSelectionBackground);
-                    --toolbar-hover: var(--vscode-toolbar-hoverBackground);
-                    --radius-xs: 4px;
-                    --radius-sm: 6px;
-                    --radius-md: 10px;
-                    --radius-lg: 14px;
-                    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
-                    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
-                    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.16);
-                    --shadow-glow: 0 0 20px rgba(78, 201, 176, 0.3);
-                    --transition: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-
+            <style>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
 
                 body {
                     font-family: var(--vscode-font-family);
                     font-size: 13px;
-                    color: var(--text-primary);
-                    background-color: var(--bg);
+                    color: var(--vscode-foreground);
+                    background-color: var(--vscode-editor-background);
                     line-height: 1.5;
-                    padding: 16px;
                 }
 
-                .mc-layout {
+                .main {
                     display: flex;
                     flex-direction: column;
-                    gap: 16px;
-                    max-width: 1000px;
-                    margin: 0 auto;
-                }
-
-                /* Header Card */
-                .mc-header-card {
-                    background: var(--panel-bg);
-                    border: 1px solid var(--border);
-                    border-radius: var(--radius-lg);
-                    padding: 20px;
-                    box-shadow: var(--shadow-sm);
-                    display: ${hasStruct ? 'block' : 'none'};
-                }
-
-                .mc-header-content {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                }
-
-                .mc-header-info {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                }
-
-                .mc-struct-icon {
-                    width: 48px;
-                    height: 48px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: var(--primary-bg);
-                    border-radius: var(--radius-md);
-                    font-size: 24px;
-                }
-
-                .mc-struct-name {
-                    font-size: 20px;
-                    font-weight: 600;
-                    color: var(--text-primary);
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-
-                .mc-struct-type {
-                    font-size: 11px;
-                    font-weight: 500;
-                    padding: 3px 10px;
-                    border-radius: var(--radius-full);
-                    text-transform: uppercase;
-                }
-
-                .mc-struct-type.struct {
-                    background: var(--primary-bg);
-                    color: var(--primary);
-                }
-
-                .mc-struct-type.union {
-                    background: rgba(197, 134, 192, 0.12);
-                    color: var(--secondary);
-                }
-
-                .mc-struct-meta {
-                    font-size: 13px;
-                    color: var(--text-secondary);
-                    margin-top: 4px;
-                }
-
-                .mc-header-actions {
-                    display: flex;
-                    gap: 8px;
-                }
-
-                /* Input Card */
-                .mc-input-card {
-                    background: var(--panel-bg);
-                    border: 1px solid var(--border);
-                    border-radius: var(--radius-lg);
-                    padding: 20px;
-                    box-shadow: var(--shadow-sm);
-                }
-
-                .mc-input-row {
-                    display: flex;
-                    gap: 12px;
-                    align-items: stretch;
-                }
-
-                .mc-input-group {
-                    flex: 1;
-                    display: flex;
-                    align-items: stretch;
-                    background: var(--input-bg);
-                    border: 2px solid var(--input-border);
-                    border-radius: var(--radius-md);
+                    height: 100vh;
                     overflow: hidden;
-                    transition: all var(--transition);
-                }
-
-                .mc-input-group:focus-within {
-                    border-color: var(--primary);
-                    box-shadow: 0 0 0 4px var(--primary-bg);
-                }
-
-                .mc-input-prefix {
-                    display: flex;
-                    align-items: center;
-                    padding: 0 16px;
-                    background: rgba(0, 0, 0, 0.2);
-                    color: var(--primary);
-                    font-family: var(--vscode-editor-font-family);
-                    font-weight: 700;
-                    font-size: 16px;
-                    border-right: 1px solid var(--input-border);
-                }
-
-                .mc-input {
-                    flex: 1;
-                    padding: 14px 16px;
-                    background: transparent;
-                    border: none;
-                    color: var(--text-primary);
-                    font-family: var(--vscode-editor-font-family);
-                    font-size: 18px;
-                    font-weight: 500;
-                    letter-spacing: 1px;
-                }
-
-                .mc-input:focus {
-                    outline: none;
-                }
-
-                .mc-input::placeholder {
-                    color: var(--text-muted);
-                    font-weight: 400;
-                }
-
-                .mc-btn {
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 8px;
-                    padding: 14px 24px;
-                    font-size: 14px;
-                    font-weight: 600;
-                    border: none;
-                    border-radius: var(--radius-md);
-                    cursor: pointer;
-                    transition: all var(--transition);
-                    font-family: inherit;
-                }
-
-                .mc-btn-primary {
-                    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
-                    color: white;
-                    box-shadow: 0 4px 12px rgba(78, 201, 176, 0.35);
-                }
-
-                .mc-btn-primary:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 6px 20px rgba(78, 201, 176, 0.45);
-                }
-
-                .mc-btn-primary:active {
-                    transform: translateY(0);
-                }
-
-                .mc-btn-icon {
-                    width: 36px;
-                    height: 36px;
-                    padding: 0;
-                    background: transparent;
-                    color: var(--text-secondary);
-                    border-radius: var(--radius-sm);
-                }
-
-                .mc-btn-icon:hover {
-                    background: var(--hover-bg);
-                    color: var(--text-primary);
                 }
 
                 /* Empty State */
-                .mc-empty-state {
+                .empty-state {
+                    flex: 1;
                     display: flex;
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
                     padding: 60px 24px;
                     text-align: center;
-                    min-height: 350px;
                 }
 
-                .mc-empty-icon {
-                    font-size: 64px;
-                    margin-bottom: 20px;
-                    opacity: 0.6;
+                .empty-icon {
+                    font-size: 48px;
+                    margin-bottom: 16px;
+                    opacity: 0.5;
                 }
 
-                .mc-empty-title {
-                    font-size: 20px;
+                .empty-title {
+                    font-size: 16px;
                     font-weight: 600;
-                    color: var(--text-primary);
+                    color: var(--vscode-descriptionForeground);
                     margin-bottom: 8px;
                 }
 
-                .mc-empty-text {
-                    font-size: 14px;
-                    color: var(--text-secondary);
-                    margin-bottom: 32px;
-                    max-width: 320px;
+                .empty-text {
+                    font-size: 13px;
+                    color: var(--vscode-descriptionForeground);
+                    max-width: 280px;
+                    line-height: 1.5;
                 }
 
-                .mc-steps {
+                .empty-steps {
+                    margin-top: 24px;
                     display: flex;
                     flex-direction: column;
-                    gap: 12px;
+                    gap: 10px;
                     text-align: left;
                     width: 100%;
-                    max-width: 320px;
-                    padding: 20px;
-                    background: var(--panel-bg);
-                    border: 1px solid var(--border);
-                    border-radius: var(--radius-lg);
+                    max-width: 280px;
                 }
 
-                .mc-step {
+                .empty-step {
                     display: flex;
                     align-items: center;
-                    gap: 12px;
+                    gap: 10px;
+                    padding: 8px 12px;
+                    background: var(--vscode-panel-background);
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 6px;
                 }
 
-                .mc-step-num {
-                    width: 28px;
-                    height: 28px;
+                .empty-step-num {
+                    width: 22px;
+                    height: 22px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    background: var(--primary-bg);
-                    color: var(--primary);
+                    background: rgba(78, 201, 176, 0.12);
+                    color: #4EC9B0;
                     border-radius: 50%;
-                    font-size: 12px;
+                    font-size: 11px;
                     font-weight: 700;
                     flex-shrink: 0;
                 }
 
-                .mc-step-text {
-                    font-size: 13px;
-                    color: var(--text-primary);
+                .empty-step-text {
+                    font-size: 12px;
+                    color: var(--vscode-descriptionForeground);
                 }
 
-                /* Fields Card */
-                .mc-fields-card {
-                    background: var(--panel-bg);
-                    border: 1px solid var(--border);
-                    border-radius: var(--radius-lg);
+                /* Content Panel */
+                .content-panel {
+                    display: flex;
+                    flex-direction: column;
+                    flex: 1;
                     overflow: hidden;
-                    box-shadow: var(--shadow-sm);
-                    display: none;
                 }
 
-                .mc-fields-header {
+                /* Top Bar */
+                .main-topbar {
+                    padding: 12px 24px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
-                    padding: 14px 20px;
-                    background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
-                    border-bottom: 1px solid var(--border);
+                    background: var(--vscode-panel-background);
                 }
 
-                .mc-fields-title {
+                .topbar-left {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+
+                .topbar-struct-icon {
+                    width: 36px;
+                    height: 36px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: rgba(78, 201, 176, 0.12);
+                    border-radius: 8px;
+                    font-size: 18px;
+                }
+
+                .topbar-info h2 {
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: var(--vscode-foreground);
                     display: flex;
                     align-items: center;
                     gap: 8px;
-                    font-size: 13px;
+                }
+
+                .topbar-info p {
+                    font-size: 12px;
+                    color: var(--vscode-descriptionForeground);
+                    margin-top: 2px;
+                }
+
+                .type-badge {
+                    font-size: 10px;
                     font-weight: 600;
-                    color: var(--text-primary);
+                    padding: 2px 8px;
+                    border-radius: 4px;
                     text-transform: uppercase;
-                    letter-spacing: 0.5px;
                 }
 
-                .mc-fields-icon {
-                    font-size: 16px;
-                    color: var(--primary);
-                }
-
-                .mc-fields-count {
-                    font-size: 11px;
-                    padding: 3px 10px;
-                    background: var(--primary-bg);
-                    color: var(--primary);
-                    border-radius: var(--radius-full);
-                    font-weight: 600;
-                }
-
-                .mc-hide-zero-btn {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 5px;
-                    padding: 4px 10px;
-                    font-size: 11px;
-                    font-weight: 500;
-                    border: 1px solid var(--border);
-                    border-radius: var(--radius-sm);
-                    cursor: pointer;
-                    transition: all var(--transition);
-                    background: transparent;
-                    color: var(--text-secondary);
-                    font-family: inherit;
-                }
-
-                .mc-hide-zero-btn:hover {
-                    background: var(--hover-bg);
-                    color: var(--text-primary);
-                }
-
-                .mc-hide-zero-btn.active {
+                .type-badge.struct {
                     background: rgba(78, 201, 176, 0.15);
-                    color: var(--primary);
-                    border-color: var(--primary-border);
+                    color: #4EC9B0;
                 }
 
-                .mc-tree-node.zero-hidden {
-                    display: none;
+                .type-badge.union {
+                    background: rgba(197, 134, 192, 0.15);
+                    color: #C586C0;
                 }
 
-                /* Search */
-                .mc-search-card {
-                    background: var(--panel-bg);
-                    border: 1px solid var(--border);
-                    border-radius: var(--radius-lg);
-                    padding: 12px;
-                    box-shadow: var(--shadow-sm);
+                /* Hex Input Section */
+                .hex-section {
+                    padding: 16px 24px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    background: var(--vscode-panel-background);
                 }
 
-                .mc-search {
-                    position: relative;
-                }
-
-                .mc-search-icon {
-                    position: absolute;
-                    left: 12px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    font-size: 14px;
-                    color: var(--text-muted);
-                    pointer-events: none;
-                }
-
-                .mc-search-input {
-                    width: 100%;
-                    padding: 10px 36px;
-                    border: 1px solid var(--input-border);
-                    border-radius: var(--radius-md);
-                    background: var(--input-bg);
-                    color: var(--text-primary);
-                    font-size: 13px;
-                    transition: all var(--transition);
-                }
-
-                .mc-search-input:focus {
-                    outline: none;
-                    border-color: var(--primary);
-                    box-shadow: 0 0 0 3px var(--primary-bg);
-                }
-
-                .mc-search-input::placeholder {
-                    color: var(--text-muted);
-                }
-
-                /* Tree View */
-                .mc-fields-list {
-                    max-height: 500px;
-                    overflow-y: auto;
-                }
-
-                .mc-tree-node {
+                .hex-row {
                     display: flex;
-                    flex-direction: column;
-                    border-bottom: 1px solid var(--border);
-                }
-
-                .mc-tree-node:last-child {
-                    border-bottom: none;
-                }
-
-                .mc-tree-node-header {
-                    display: flex;
-                    align-items: center;
                     gap: 12px;
-                    padding: 12px 20px;
-                    cursor: pointer;
-                    transition: all var(--transition);
+                    align-items: stretch;
                 }
 
-                .mc-tree-node-header:hover {
-                    background: var(--hover-bg);
-                }
-
-                .mc-tree-node-content {
+                .hex-input-group {
                     flex: 1;
                     display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    min-width: 0;
+                    align-items: stretch;
+                    border: 1px solid var(--vscode-input-border);
+                    border-radius: 6px;
+                    overflow: hidden;
+                    transition: border-color 0.15s;
                 }
 
-                .mc-tree-expand {
-                    width: 20px;
-                    height: 20px;
+                .hex-input-group:focus-within {
+                    border-color: #4EC9B0;
+                }
+
+                .hex-prefix {
                     display: flex;
                     align-items: center;
-                    justify-content: center;
-                    font-size: 12px;
-                    color: var(--text-muted);
+                    padding: 0 14px;
+                    background: var(--vscode-editor-background);
+                    color: #4EC9B0;
+                    font-family: var(--vscode-editor-font-family);
+                    font-weight: 700;
+                    font-size: 15px;
+                    border-right: 1px solid var(--vscode-input-border);
+                }
+
+                .hex-input {
+                    flex: 1;
+                    padding: 10px 14px;
+                    background: var(--vscode-input-background);
+                    border: none;
+                    color: var(--vscode-foreground);
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 15px;
+                    font-weight: 500;
+                    letter-spacing: 1px;
+                    outline: none;
+                }
+
+                .hex-input::placeholder {
+                    color: var(--vscode-input-placeholderForeground);
+                    font-weight: 400;
+                }
+
+                .hex-apply-btn {
+                    padding: 10px 20px;
+                    background: #4EC9B0;
+                    color: #1e1e1e;
+                    border: none;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    font-weight: 600;
                     cursor: pointer;
-                    transition: transform var(--transition);
+                    transition: all 0.15s;
+                    font-family: var(--vscode-font-family);
+                }
+
+                .hex-apply-btn:hover {
+                    background: #3DB8A0;
+                }
+
+                .hex-info {
+                    margin-top: 8px;
+                    font-size: 11px;
+                    color: var(--vscode-descriptionForeground);
+                    display: flex;
+                    gap: 16px;
+                }
+
+                .hex-info .label {
+                    color: var(--vscode-descriptionForeground);
+                }
+
+                .hex-info .value {
+                    color: #4EC9B0;
+                    font-family: var(--vscode-editor-font-family);
+                    font-weight: 500;
+                }
+
+                /* Fields Section */
+                .fields-section {
+                    flex: 1;
+                    overflow: hidden;
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .fields-header {
+                    padding: 10px 24px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    background: var(--vscode-panel-background);
+                }
+
+                .fields-title {
+                    font-size: 11px;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    color: var(--vscode-descriptionForeground);
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .fields-count {
+                    background: rgba(78, 201, 176, 0.15);
+                    color: #4EC9B0;
+                    padding: 1px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    font-weight: 600;
+                }
+
+                .fields-tree {
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 4px 0;
+                }
+
+                .fields-tree::-webkit-scrollbar {
+                    width: 6px;
+                }
+
+                .fields-tree::-webkit-scrollbar-thumb {
+                    background: var(--vscode-scrollbarSlider-background);
+                    border-radius: 3px;
+                }
+
+                /* Tree Node */
+                .tree-node {
+                    user-select: none;
+                }
+
+                .tree-row {
+                    display: flex;
+                    align-items: center;
+                    padding: 5px 24px;
+                    cursor: pointer;
+                    transition: background 0.1s;
+                    border-left: 2px solid transparent;
+                }
+
+                .tree-row:hover {
+                    background: var(--vscode-list-hoverBackground);
+                }
+
+                .tree-row.selected {
+                    background: var(--vscode-list-activeSelectionBackground);
+                    border-left-color: #4EC9B0;
+                }
+
+                .tree-indent {
                     flex-shrink: 0;
                 }
 
-                .mc-tree-expand.expanded {
+                .tree-expand {
+                    width: 16px;
+                    height: 16px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 10px;
+                    color: var(--vscode-descriptionForeground);
+                    transition: transform 0.15s;
+                    flex-shrink: 0;
+                }
+
+                .tree-expand.expanded {
                     transform: rotate(90deg);
                 }
 
-                .mc-tree-expand.no-children {
+                .tree-expand.leaf {
                     visibility: hidden;
                 }
 
-                .mc-tree-icon {
-                    width: 10px;
-                    height: 10px;
+                .tree-icon {
+                    width: 8px;
+                    height: 8px;
                     border-radius: 50%;
                     flex-shrink: 0;
-                    box-shadow: 0 0 6px currentColor;
+                    margin-left: 8px;
+                    margin-right: 8px;
                 }
 
-                .mc-tree-icon.struct { background: var(--primary); color: var(--primary); }
-                .mc-tree-icon.union { background: var(--secondary); color: var(--secondary); }
-                .mc-tree-icon.uint { background: #9CDCFE; color: #9CDCFE; }
-                .mc-tree-icon.bool { background: #569CD6; color: #569CD6; }
+                .tree-icon.struct { background: #4EC9B0; }
+                .tree-icon.union { background: #C586C0; }
+                .tree-icon.uint { background: #9CDCFE; }
+                .tree-icon.bool { background: #569CD6; }
+                .tree-icon.anon { background: #666; }
 
-                .mc-tree-name {
-                    flex: 1;
-                    min-width: 0;
+                .tree-name {
                     font-size: 13px;
-                    font-weight: 500;
-                    color: var(--text-primary);
+                    color: var(--vscode-foreground);
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                    min-width: 60px;
+                    flex: 1;
                 }
 
-                .mc-tree-type-badge {
+                .tree-type {
                     font-size: 10px;
-                    font-weight: 600;
-                    padding: 3px 8px;
-                    border-radius: var(--radius-sm);
-                    text-transform: uppercase;
-                    font-family: var(--vscode-editor-font-family);
+                    font-weight: 500;
+                    padding: 1px 6px;
+                    border-radius: 3px;
+                    text-align: center;
+                    white-space: nowrap;
+                    width: 60px;
+                    flex-shrink: 0;
+                    margin-left: 8px;
                 }
 
-                .mc-tree-type-badge.struct {
-                    background: var(--primary-bg);
-                    color: var(--primary);
+                .tree-type.struct {
+                    background: rgba(78, 201, 176, 0.12);
+                    color: #4EC9B0;
                 }
 
-                .mc-tree-type-badge.union {
+                .tree-type.union {
                     background: rgba(197, 134, 192, 0.12);
-                    color: var(--secondary);
+                    color: #C586C0;
                 }
 
-                .mc-tree-type-badge.uint,
-                .mc-tree-type-badge.int {
-                    background: rgba(156, 220, 254, 0.12);
+                .tree-type.uint,
+                .tree-type.int {
+                    background: rgba(156, 220, 254, 0.1);
                     color: #9CDCFE;
                 }
 
-                .mc-tree-type-badge.bool {
-                    background: rgba(86, 156, 214, 0.12);
+                .tree-type.bool {
+                    background: rgba(86, 156, 214, 0.1);
                     color: #569CD6;
                 }
 
-                .mc-tree-value-input {
-                    width: 70px;
-                    padding: 6px 10px;
-                    background: var(--input-bg);
-                    border: 1px solid var(--input-border);
-                    border-radius: var(--radius-sm);
-                    color: var(--text-primary);
+                .tree-type.anon {
+                    background: rgba(100, 100, 100, 0.2);
+                    color: var(--vscode-descriptionForeground);
+                }
+
+                .tree-offset {
+                    font-size: 10px;
+                    color: var(--vscode-descriptionForeground);
                     font-family: var(--vscode-editor-font-family);
-                    font-size: 13px;
+                    text-align: right;
+                    white-space: nowrap;
+                    width: 40px;
+                    flex-shrink: 0;
+                    margin-left: 8px;
+                }
+
+                .tree-bits {
+                    font-size: 10px;
+                    color: var(--vscode-descriptionForeground);
+                    font-family: var(--vscode-editor-font-family);
+                    text-align: right;
+                    white-space: nowrap;
+                    width: 40px;
+                    flex-shrink: 0;
+                    margin-left: 8px;
+                }
+
+                .tree-value {
+                    width: 70px;
+                    padding: 3px 8px;
+                    background: var(--vscode-input-background);
+                    border: 1px solid var(--vscode-input-border);
+                    border-radius: 4px;
+                    color: var(--vscode-foreground);
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 12px;
                     font-weight: 500;
                     text-align: right;
-                    transition: all var(--transition);
+                    outline: none;
+                    transition: border-color 0.15s;
                     -moz-appearance: textfield;
                     appearance: textfield;
+                    flex-shrink: 0;
+                    margin-left: 8px;
                 }
 
-                .mc-tree-value-input::-webkit-outer-spin-button,
-                .mc-tree-value-input::-webkit-inner-spin-button {
+                .tree-value::-webkit-outer-spin-button,
+                .tree-value::-webkit-inner-spin-button {
                     -webkit-appearance: none;
-                    margin: 0;
                 }
 
-                .mc-tree-value-input:focus {
-                    outline: none;
-                    border-color: var(--primary);
-                    box-shadow: 0 0 0 3px var(--primary-bg);
+                .tree-value:focus {
+                    border-color: #4EC9B0;
                 }
 
-                .mc-tree-hex {
-                    min-width: 70px;
+                .tree-hex {
                     font-family: var(--vscode-editor-font-family);
-                    font-size: 13px;
-                    color: var(--accent);
+                    font-size: 12px;
+                    color: #75BEFF;
                     text-align: right;
                     font-weight: 500;
+                    white-space: nowrap;
+                    width: 60px;
+                    flex-shrink: 0;
+                    margin-left: 8px;
                 }
 
-                .mc-tree-bits {
-                    min-width: 50px;
-                    font-size: 11px;
-                    color: var(--text-secondary);
-                    text-align: right;
+                .tree-spacer-value {
+                    width: 70px;
+                    flex-shrink: 0;
+                    margin-left: 8px;
                 }
 
-                .mc-tree-copy {
-                    width: 28px;
-                    height: 28px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: transparent;
-                    border: none;
-                    border-radius: var(--radius-sm);
-                    color: var(--text-muted);
-                    cursor: pointer;
-                    opacity: 0;
-                    transition: all var(--transition);
-                    font-size: 12px;
+                .tree-spacer-hex {
+                    width: 60px;
+                    flex-shrink: 0;
+                    margin-left: 8px;
                 }
 
-                .mc-tree-node-header:hover .mc-tree-copy {
-                    opacity: 1;
+                .tree-children {
+                    overflow: hidden;
                 }
 
-                .mc-tree-copy:hover {
-                    background: var(--hover-bg);
-                    color: var(--primary);
-                }
-
-                /* Nested nodes */
-                .mc-tree-children {
+                .tree-children.collapsed {
                     display: none;
-                    background: rgba(0, 0, 0, 0.05);
-                    border-left: 3px solid var(--border);
-                    margin-left: 20px;
                 }
 
-                .mc-tree-children.expanded {
-                    display: block;
-                }
-
-                .mc-tree-children .mc-tree-node-header {
-                    padding-left: 30px;
-                }
-
-                /* Highlight */
-                .mc-tree-node-header.highlighted {
-                    background: var(--primary-bg);
-                    border-color: var(--primary-border);
+                .tree-node.zero-hidden {
+                    display: none;
                 }
 
                 /* Animations */
                 @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(10px); }
-                    to { opacity: 1; transform: translateY(0); }
+                    from { opacity: 0; }
+                    to { opacity: 1; }
                 }
 
-                @keyframes slideIn {
-                    from { opacity: 0; transform: translateX(-10px); }
-                    to { opacity: 1; transform: translateX(0); }
-                }
-
-                .mc-animate-fade {
-                    animation: fadeIn 0.3s ease;
-                }
-
-                .mc-tree-node {
-                    animation: slideIn 0.2s ease;
-                }
-
-                /* Responsive */
-                @media (max-width: 768px) {
-                    .mc-input-row {
-                        flex-direction: column;
-                    }
-
-                    .mc-btn-primary {
-                        width: 100%;
-                    }
-
-                    .mc-field-row {
-                        flex-wrap: wrap;
-                    }
-
-                    .mc-field-binary {
-                        display: none;
-                    }
-                }
+                .tree-node { animation: fadeIn 0.15s ease; }
             </style>
         </head>
         <body>
-            <div class="mc-layout">
+            <div class="main">
                 <!-- Empty State -->
-                <div id="emptyState" class="mc-empty-state" style="display: ${hasStruct ? 'none' : 'flex'}">
-                    <div class="mc-empty-icon">📊</div>
-                    <div class="mc-empty-title">Struct Parser</div>
-                    <div class="mc-empty-text">Select a struct from the sidebar to start parsing hex values</div>
-                    <div class="mc-steps">
-                        <div class="mc-step">
-                            <span class="mc-step-num">1</span>
-                            <span class="mc-step-text">Import JSON file from sidebar</span>
+                <div class="empty-state" id="emptyState" style="display: ${hasStruct ? 'none' : 'flex'}">
+                    <div class="empty-icon">\u26A1</div>
+                    <div class="empty-title">No Struct Selected</div>
+                    <div class="empty-text">Select a struct from the sidebar to view and edit its binary fields</div>
+                    <div class="empty-steps">
+                        <div class="empty-step">
+                            <span class="empty-step-num">1</span>
+                            <span class="empty-step-text">Import a JSON file with struct definitions</span>
                         </div>
-                        <div class="mc-step">
-                            <span class="mc-step-num">2</span>
-                            <span class="mc-step-text">Select a struct from the list</span>
+                        <div class="empty-step">
+                            <span class="empty-step-num">2</span>
+                            <span class="empty-step-text">Select a struct from the sidebar</span>
                         </div>
-                        <div class="mc-step">
-                            <span class="mc-step-num">3</span>
-                            <span class="mc-step-text">Enter hex value and parse</span>
+                        <div class="empty-step">
+                            <span class="empty-step-num">3</span>
+                            <span class="empty-step-text">Enter hex value or edit fields directly</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Header Card -->
-                <div id="headerCard" class="mc-header-card" style="display: ${hasStruct ? 'block' : 'none'}">
-                    <div class="mc-header-content">
-                        <div class="mc-header-info">
-                            <div class="mc-struct-icon">📐</div>
-                            <div>
-                                <div class="mc-struct-name">
-                                    <span>${structName}</span>
-                                    <span class="mc-struct-type ${structType}">${structType}</span>
-                                </div>
-                                <div class="mc-struct-meta">${structSize} bits total</div>
+                <!-- Content Panel -->
+                <div class="content-panel" id="contentPanel" style="display: ${hasStruct ? 'flex' : 'none'}">
+                    <!-- Top Bar -->
+                    <div class="main-topbar">
+                        <div class="topbar-left">
+                            <div class="topbar-struct-icon">\u26A1</div>
+                            <div class="topbar-info">
+                                <h2 id="structName">${structName} <span class="type-badge ${isUnion ? 'union' : 'struct'}">${isUnion ? 'union' : 'struct'}</span></h2>
+                                <p id="structMeta">${structBits} bits · ${structBytes} bytes</p>
                             </div>
                         </div>
-                        <div class="mc-header-actions">
-                            <button id="btnCopyDef" class="mc-btn mc-btn-icon" title="Copy Definition">📋</button>
+                    </div>
+
+                    <!-- Hex Input -->
+                    <div class="hex-section">
+                        <div class="hex-row">
+                            <div class="hex-input-group">
+                                <span class="hex-prefix">0x</span>
+                                <input type="text" class="hex-input" id="hexInput" placeholder="Enter hex value..." value="">
+                            </div>
+                            <button class="hex-apply-btn" id="btnParse">Parse</button>
                         </div>
                     </div>
-                </div>
 
-                <!-- Input Card -->
-                <div id="inputCard" class="mc-input-card" style="display: ${hasStruct ? 'block' : 'none'}">
-                    <div class="mc-input-row">
-                        <div class="mc-input-group">
-                            <span class="mc-input-prefix">0x</span>
-                            <input type="text" id="hexInput" class="mc-input" placeholder="Enter hex value to parse" maxlength="16">
-                        </div>
-                        <button id="btnParse" class="mc-btn mc-btn-primary">
-                            <span>▶</span>
-                            <span>Parse</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Search Card -->
-                <div id="searchCard" class="mc-search-card" style="display: ${hasStruct ? 'block' : 'none'}">
-                    <div class="mc-search">
-                        <span class="mc-search-icon">🔍</span>
-                        <input type="text" id="searchInput" class="mc-search-input" placeholder="Search fields...">
-                    </div>
-                </div>
-
-                <!-- Fields Card -->
-                <div id="fieldsCard" class="mc-fields-card" style="display: ${hasStruct ? 'block' : 'none'}">
-                    <div class="mc-fields-header">
-                        <div class="mc-fields-title">
-                            <span class="mc-fields-icon">📋</span>
+                    <!-- Fields Header -->
+                    <div class="fields-header">
+                        <div class="fields-title">
                             <span>Parsed Fields</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <button id="btnHideZeroLocal" class="mc-hide-zero-btn" title="Hide fields with zero value in this tab">🔍 Hide Zero</button>
-                            <span id="fieldsCount" class="mc-fields-count">0</span>
+                            <span class="fields-count" id="fieldsCount">0</span>
                         </div>
                     </div>
-                    <div id="fieldsList" class="mc-fields-list"></div>
 
+                    <!-- Fields Tree -->
+                    <div class="fields-tree" id="fieldsTree"></div>
                 </div>
             </div>
 
@@ -1314,35 +945,15 @@ export class StructParserPanel {
                 const vscode = acquireVsCodeApi();
                 let currentStructName = '${structName.replace(/'/g, "\\'")}';
                 let currentFields = [];
-                let expandedNodes = new Set();
                 let hideZero = false;
 
-                document.addEventListener('DOMContentLoaded', function() {
-                    setupEventListeners();
+                document.getElementById('btnParse')?.addEventListener('click', parseValue);
+                document.getElementById('hexInput')?.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') parseValue();
                 });
 
-                function setupEventListeners() {
-                    document.getElementById('btnParse')?.addEventListener('click', parseValue);
-                    document.getElementById('hexInput')?.addEventListener('keypress', (e) => {
-                        if (e.key === 'Enter') parseValue();
-                    });
-                    document.getElementById('searchInput')?.addEventListener('input', (e) => {
-                        filterFields(e.target.value);
-                    });
-                    document.getElementById('btnCopyDef')?.addEventListener('click', () => {
-                        vscode.postMessage({ command: 'copy', text: '${structName}' });
-                    });
-
-                    document.getElementById('btnHideZeroLocal')?.addEventListener('click', () => {
-                        hideZero = !hideZero;
-                        const btn = document.getElementById('btnHideZeroLocal');
-                        btn.classList.toggle('active', hideZero);
-                        applyHideZero();
-                    });
-
-                    document.getElementById('fieldsList')?.addEventListener('click', handleFieldClick);
-                    document.getElementById('fieldsList')?.addEventListener('change', handleFieldChange);
-                }
+                document.getElementById('fieldsTree')?.addEventListener('click', handleFieldClick);
+                document.getElementById('fieldsTree')?.addEventListener('change', handleFieldChange);
 
                 function parseValue() {
                     const hexValue = document.getElementById('hexInput')?.value?.trim();
@@ -1357,41 +968,24 @@ export class StructParserPanel {
                     vscode.postMessage({ command: 'parse', hexValue, structName: currentStructName });
                 }
 
-                function filterFields(term) {
-                    const rows = document.querySelectorAll('.mc-tree-node-header');
-                    const lowerTerm = term.toLowerCase();
-                    rows.forEach(row => {
-                        const name = row.getAttribute('data-name') || '';
-                        const type = row.getAttribute('data-type') || '';
-                        const match = name.toLowerCase().includes(lowerTerm) || type.toLowerCase().includes(lowerTerm);
-                        row.style.display = match ? '' : 'none';
-                    });
-                }
-
                 function handleFieldClick(e) {
-                    const expand = e.target.closest('.mc-tree-expand');
-                    if (expand) {
-                        const fieldName = expand.getAttribute('data-field');
-                        const children = document.querySelector('.mc-tree-children[data-parent="' + fieldName + '"]');
+                    const expand = e.target.closest('.tree-expand');
+                    if (expand && !expand.classList.contains('leaf')) {
+                        expand.classList.toggle('expanded');
+                        const treeNode = expand.closest('.tree-node');
+                        const children = treeNode?.querySelector(':scope > .tree-children');
                         if (children) {
-                            children.classList.toggle('expanded');
-                            expand.classList.toggle('expanded');
+                            children.classList.toggle('collapsed');
                         }
-                    }
-                    const copyBtn = e.target.closest('.mc-tree-copy');
-                    if (copyBtn) {
-                        const value = copyBtn.getAttribute('data-value');
-                        vscode.postMessage({ command: 'copy', text: value });
                     }
                 }
 
                 function handleFieldChange(e) {
-                    if (e.target.classList.contains('mc-tree-value-input')) {
+                    if (e.target.classList.contains('tree-value')) {
                         const fieldPath = JSON.parse(e.target.getAttribute('data-path') || '[]');
                         const bits = parseInt(e.target.getAttribute('data-bits'));
                         const maxVal = bits >= 32 ? 4294967295 : (1 << bits) - 1;
                         const raw = e.target.value.trim();
-                        // 支持 0x 十六进制输入
                         const newValue = raw.startsWith('0x') || raw.startsWith('0X')
                             ? parseInt(raw, 16)
                             : parseInt(raw, 10);
@@ -1427,18 +1021,15 @@ export class StructParserPanel {
                             break;
                         case 'setHideZero':
                             hideZero = message.hideZero;
-                            const btn = document.getElementById('btnHideZeroLocal');
-                            if (btn) btn.classList.toggle('active', hideZero);
                             applyHideZero();
                             break;
                     }
                 });
 
                 function applyHideZero() {
-                    // 只对叶子节点（没有 mc-tree-children 子元素的节点）过滤零值
-                    const nodes = document.querySelectorAll('.mc-tree-node[data-value]');
+                    const nodes = document.querySelectorAll('.tree-node[data-value]');
                     nodes.forEach(node => {
-                        const hasChildren = node.querySelector('.mc-tree-children') !== null;
+                        const hasChildren = node.querySelector(':scope > .tree-children') !== null;
                         if (hasChildren) {
                             node.classList.remove('zero-hidden');
                             return;
@@ -1450,10 +1041,13 @@ export class StructParserPanel {
                             node.classList.remove('zero-hidden');
                         }
                     });
-                    // update visible count
+                    updateFieldsCount();
+                }
+
+                function updateFieldsCount() {
                     const countEl = document.getElementById('fieldsCount');
                     if (countEl) {
-                        const visible = document.querySelectorAll('.mc-tree-node[data-value]:not(.zero-hidden)').length;
+                        const visible = document.querySelectorAll('.tree-node[data-value]:not(.zero-hidden)').length;
                         countEl.textContent = visible;
                     }
                 }
@@ -1464,1398 +1058,74 @@ export class StructParserPanel {
                         vscode.postMessage({ command: 'alert', text: data.error });
                         return;
                     }
-                    renderFieldsList(data.fields);
-                    document.getElementById('fieldsCard').style.display = 'block';
+                    renderFieldsTree(data.fields);
+                    document.getElementById('contentPanel').style.display = 'flex';
+                    document.getElementById('emptyState').style.display = 'none';
                 }
 
-                function renderFieldsList(fields) {
-                    const container = document.getElementById('fieldsList');
-                    const countEl = document.getElementById('fieldsCount');
-                    if (!container) return;
+                function renderFieldsTree(fields) {
+                    const tree = document.getElementById('fieldsTree');
+                    if (!tree) return;
 
-                    let count = 0;
                     let html = '';
 
-                    function renderTreeNode(field, level = 0, parentPath = []) {
+                    function renderNode(field, depth = 0, parentPath = []) {
                         const hasChildren = field.fields && field.fields.length > 0;
                         const fieldPath = [...parentPath, field.name];
                         const typeClass = field.type === 'struct' ? 'struct' :
                                         field.type === 'union' ? 'union' :
                                         field.type === 'bool' ? 'bool' : 'uint';
+                        const iconClass = hasChildren ? (field.type === 'struct' ? 'struct' : field.type === 'union' ? 'union' : 'anon') : typeClass;
+                        const typeLabel = field.type || 'anon';
                         const maxVal = field.bits >= 32 ? 4294967295 : (1 << field.bits) - 1;
                         const pathJson = JSON.stringify(fieldPath).replace(/"/g, '&quot;');
 
-                        count++;
                         html += \`
-                            <div class="mc-tree-node" data-value="\${field.value}">
-                                <div class="mc-tree-node-header" data-name="\${field.name}" data-type="\${field.type}">
-                                    <div class="mc-tree-expand \${hasChildren ? '' : 'no-children'}" data-field="\${field.name}">
-                                        \${hasChildren ? '▶' : ''}
-                                    </div>
-                                    <div class="mc-tree-node-content">
-                                        <span class="mc-tree-icon \${typeClass}"></span>
-                                        <span class="mc-tree-name">\${field.name}</span>
-                                        <span class="mc-tree-type-badge \${typeClass}">\${field.type}</span>
-                                        <input type="text" class="mc-tree-value-input" data-path="\${pathJson}" data-bits="\${field.bits}" data-orig="\${field.value}" value="\${field.value}" title="max: \${maxVal} (\${field.bits}bits)">
-                                        <span class="mc-tree-hex">\${field.hex}</span>
-                                        <span class="mc-tree-bits">\${field.bits}b</span>
-                                        <button class="mc-tree-copy" data-value="\${field.hex}">📋</button>
-                                    </div>
-                                </div>
+                            <div class="tree-node" data-value="\${field.value}">
+                                <div class="tree-row">
+                                    <span class="tree-indent" style="padding-left: \${depth * 20}px"></span>
+                                    <span class="tree-expand \${hasChildren ? '' : 'leaf'}">\u25B6</span>
+                                    <span class="tree-icon \${iconClass}"></span>
+                                    <span class="tree-name">\${field.name}</span>
+                                    <span class="tree-type \${typeClass}">\${typeLabel}</span>
+                                    <span class="tree-offset">@\${field.offset}</span>
+                                    <span class="tree-bits">\${field.bits}b</span>
                         \`;
 
+                        if (!hasChildren) {
+                            html += \`
+                                    <input type="text" class="tree-value" value="\${field.value}" data-path="\${pathJson}" data-bits="\${field.bits}" data-orig="\${field.value}" title="max: \${maxVal} (\${field.bits}bits)">
+                                    <span class="tree-hex">\${field.hex}</span>
+                            \`;
+                        } else {
+                            html += \`
+                                    <span class="tree-spacer-value"></span>
+                                    <span class="tree-spacer-hex"></span>
+                            \`;
+                        }
+
+                        html += \`</div>\`;
+
                         if (hasChildren) {
-                            html += \`<div class="mc-tree-children" data-parent="\${field.name}">\`;
-                            field.fields.forEach(child => renderTreeNode(child, level + 1, fieldPath));
+                            html += \`<div class="tree-children collapsed">\`;
+                            field.fields.forEach(child => renderNode(child, depth + 1, fieldPath));
                             html += \`</div>\`;
                         }
 
                         html += \`</div>\`;
                     }
 
-                    fields.forEach(field => renderTreeNode(field));
-
-                    container.innerHTML = html;
-                    if (countEl) countEl.textContent = count;
+                    fields.forEach(field => renderNode(field));
+                    tree.innerHTML = html;
+                    updateFieldsCount();
                     applyHideZero();
                 }
-
             </script>
         </body>
         </html>`;
     }
 
-    private _getCssStyles(): string {
-        return `
-            /* CSS Reset & Base */
-            * { box-sizing: border-box; margin: 0; padding: 0; }
-            
-            :root {
-                --sp-unit: 4px;
-                --sp-xs: calc(var(--sp-unit) * 1);
-                --sp-sm: calc(var(--sp-unit) * 2);
-                --sp-md: calc(var(--sp-unit) * 3);
-                --sp-lg: calc(var(--sp-unit) * 4);
-                --sp-xl: calc(var(--sp-unit) * 6);
-                --sp-radius: 8px;
-                --sp-radius-sm: 4px;
-                --sp-shadow-sm: 0 1px 2px rgba(0,0,0,0.08);
-                --sp-shadow-md: 0 2px 8px rgba(0,0,0,0.12);
-                --sp-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                
-                /* Type Colors - Enhanced */
-                --sp-type-struct: #4EC9B0;
-                --sp-type-struct-bg: rgba(78, 201, 176, 0.1);
-                --sp-type-union: #C586C0;
-                --sp-type-union-bg: rgba(197, 134, 192, 0.1);
-                --sp-type-uint: #569CD6;
-                --sp-type-uint-bg: rgba(86, 156, 214, 0.1);
-                --sp-type-bool: #DCDCAA;
-                --sp-type-bool-bg: rgba(220, 220, 170, 0.1);
-                
-                /* Status */
-                --sp-success: #4EC9B0;
-                --sp-warning: #CCA700;
-                --sp-error: #F48771;
-            }
-            
-            body {
-                font-family: var(--vscode-font-family);
-                font-size: 13px;
-                color: var(--vscode-foreground);
-                background-color: var(--vscode-editor-background);
-                line-height: 1.5;
-            }
-            
-            /* Container */
-            .sp-container {
-                max-width: 900px;
-                margin: 0 auto;
-                padding: var(--sp-md);
-            }
-            
-            /* Compact Header */
-            .sp-header-compact {
-                margin-bottom: var(--sp-md);
-            }
-            
-            .sp-header-main {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                margin-bottom: var(--sp-xs);
-            }
-            
-            .sp-title {
-                font-size: 16px;
-                font-weight: 600;
-                color: var(--vscode-foreground);
-            }
-            
-            .sp-status-line {
-                font-size: 12px;
-                padding: var(--sp-xs) 0;
-            }
-            
-            .sp-status-success { color: var(--sp-success); }
-            .sp-status-warning { color: var(--sp-warning); }
-            
-            /* Section */
-            .sp-section {
-                margin-bottom: var(--sp-md);
-                background-color: var(--vscode-panel-background);
-                border: 1px solid var(--vscode-panel-border);
-                border-radius: var(--sp-radius);
-                overflow: hidden;
-            }
-            
-            .sp-section-compact {
-                padding: var(--sp-sm);
-            }
-            
-            .sp-section-results {
-                padding: 0;
-            }
-            
-            /* Buttons */
-            .sp-btn {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                gap: var(--sp-sm);
-                padding: var(--sp-sm) var(--sp-md);
-                font-size: 13px;
-                font-weight: 500;
-                border: none;
-                border-radius: var(--sp-radius);
-                cursor: pointer;
-                transition: all 0.2s ease;
-                background-color: var(--vscode-button-background);
-                color: var(--vscode-button-foreground);
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-            }
-            
-            .sp-btn:hover:not(:disabled) {
-                background-color: var(--vscode-button-hoverBackground);
-                transform: translateY(-1px);
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-            }
-            
-            .sp-btn:active:not(:disabled) {
-                transform: translateY(0);
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-            }
-            
-            .sp-btn:disabled {
-                opacity: 0.5;
-                cursor: not-allowed;
-            }
-            
-            .sp-btn-primary {
-                background: linear-gradient(135deg, var(--vscode-button-background) 0%, var(--vscode-button-hoverBackground) 100%);
-                font-weight: 600;
-                padding: var(--sp-sm) var(--sp-lg);
-            }
-            
-            .sp-btn-primary:hover:not(:disabled) {
-                filter: brightness(1.1);
-            }
-            
-            .sp-btn-block {
-                width: 100%;
-                margin-top: var(--sp-md);
-            }
-            
-            .sp-btn-icon {
-                width: 32px;
-                height: 32px;
-                padding: 0;
-                background: transparent;
-                color: var(--vscode-foreground);
-                box-shadow: none;
-            }
-            
-            .sp-btn-icon:hover {
-                background-color: var(--vscode-toolbar-hoverBackground);
-                transform: none;
-                box-shadow: none;
-            }
-            
-            .sp-btn-text {
-                background: transparent;
-                color: var(--vscode-textLink-foreground);
-                font-size: 12px;
-                padding: var(--sp-xs) var(--sp-sm);
-                box-shadow: none;
-            }
-            
-            .sp-btn-text:hover {
-                background: transparent;
-                transform: none;
-                box-shadow: none;
-                text-decoration: underline;
-            }
-            
-            .sp-btn-sm {
-                padding: var(--sp-xs) var(--sp-sm);
-                font-size: 12px;
-            }
-            
-            .sp-btn-xs {
-                padding: 2px var(--sp-xs);
-                font-size: 11px;
-            }
-            
-            /* Struct Info Header */
-            .sp-struct-info {
-                padding: var(--sp-md);
-                background-color: var(--vscode-panel-background);
-                border: 1px solid var(--vscode-panel-border);
-                border-radius: var(--sp-radius);
-            }
-            
-            .sp-struct-name {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-sm);
-                font-size: 16px;
-                font-weight: 600;
-            }
-            
-            .sp-struct-size {
-                margin-left: auto;
-                font-size: 12px;
-                color: var(--vscode-descriptionForeground);
-                font-weight: normal;
-            }
-            
-            /* Empty State */
-            .sp-empty-state {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                padding: 60px 24px;
-                text-align: center;
-                min-height: 400px;
-            }
-            
-            .sp-empty-state-content {
-                max-width: 400px;
-            }
-            
-            .sp-empty-icon {
-                margin-bottom: 24px;
-                color: var(--vscode-descriptionForeground);
-                opacity: 0.6;
-            }
-            
-            .sp-empty-icon svg {
-                width: 64px;
-                height: 64px;
-            }
-            
-            .sp-empty-text {
-                font-size: 20px;
-                font-weight: 600;
-                color: var(--vscode-foreground);
-                margin-bottom: 8px;
-            }
-            
-            .sp-empty-hint {
-                font-size: 13px;
-                color: var(--vscode-descriptionForeground);
-                margin-bottom: 32px;
-            }
-            
-            .sp-empty-steps {
-                display: flex;
-                flex-direction: column;
-                gap: 12px;
-                text-align: left;
-                padding: 20px;
-                background-color: var(--vscode-panel-background);
-                border: 1px solid var(--vscode-panel-border);
-                border-radius: var(--sp-radius);
-            }
-            
-            .sp-step {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-            }
-            
-            .sp-step-number {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                width: 24px;
-                height: 24px;
-                border-radius: 50%;
-                background-color: var(--vscode-button-background);
-                color: var(--vscode-button-foreground);
-                font-size: 12px;
-                font-weight: 600;
-                flex-shrink: 0;
-            }
-            
-            .sp-step-text {
-                font-size: 13px;
-                color: var(--vscode-foreground);
-            }
-            
-            /* Input Row */
-            .sp-input-row {
-                display: flex;
-                gap: var(--sp-sm);
-                align-items: center;
-            }
-            
-            .sp-flex-1 { flex: 1; }
-            
-            /* Input */
-            .sp-input-group {
-                display: flex;
-                align-items: center;
-                background-color: var(--vscode-input-background);
-                border: 1px solid var(--vscode-input-border);
-                border-radius: var(--sp-radius);
-                overflow: hidden;
-                transition: border-color 0.2s ease;
-            }
-            
-            .sp-input-group:focus-within {
-                border-color: var(--vscode-focusBorder);
-            }
-            
-            .sp-input-prefix {
-                padding: var(--sp-sm) var(--sp-md);
-                background-color: var(--vscode-panel-background);
-                color: var(--vscode-descriptionForeground);
-                font-family: var(--vscode-editor-font-family);
-                font-weight: 500;
-                border-right: 1px solid var(--vscode-input-border);
-                user-select: none;
-            }
-            
-            .sp-input {
-                flex: 1;
-                padding: var(--sp-sm) var(--sp-md);
-                border: none;
-                background: transparent;
-                color: var(--vscode-input-foreground);
-                font-family: var(--vscode-editor-font-family);
-                font-size: 14px;
-                font-weight: 500;
-            }
-            
-            .sp-input:focus {
-                outline: none;
-            }
-            
-            .sp-input::placeholder {
-                color: var(--vscode-input-placeholderForeground);
-                opacity: 0.6;
-            }
-            
-            .sp-select {
-                width: 100%;
-                padding: var(--sp-sm) var(--sp-md);
-                border: 1px solid var(--vscode-input-border);
-                border-radius: var(--sp-radius);
-                background-color: var(--vscode-input-background);
-                color: var(--vscode-input-foreground);
-                font-size: 13px;
-            }
-            
-            .sp-hint {
-                margin-top: var(--sp-sm);
-                font-size: 12px;
-                color: var(--vscode-descriptionForeground);
-            }
-            
-            /* Badge */
-            .sp-badge {
-                display: inline-flex;
-                align-items: center;
-                gap: var(--sp-xs);
-                margin-top: var(--sp-sm);
-                padding: var(--sp-xs) var(--sp-sm);
-                font-size: 12px;
-                border-radius: 4px;
-            }
-            
-            .sp-badge-success {
-                color: var(--sp-success);
-                background-color: rgba(78, 201, 176, 0.15);
-            }
-            
-            .sp-badge-warning {
-                color: var(--sp-warning);
-                background-color: rgba(204, 167, 0, 0.15);
-            }
-            
-            /* History Bar */
-            .sp-history-bar {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-sm);
-                margin-bottom: var(--sp-md);
-                padding: var(--sp-xs) var(--sp-sm);
-                background-color: var(--vscode-panel-background);
-                border: 1px solid var(--vscode-panel-border);
-                border-radius: var(--sp-radius);
-            }
-            
-            .sp-history-label {
-                font-size: 12px;
-            }
-            
-            .sp-history-items {
-                display: flex;
-                gap: var(--sp-xs);
-                flex: 1;
-                overflow-x: auto;
-            }
-            
-            .sp-history-chip {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-xs);
-                padding: 2px var(--sp-sm);
-                background-color: var(--vscode-list-hoverBackground);
-                border-radius: 12px;
-                font-size: 11px;
-                cursor: pointer;
-                white-space: nowrap;
-                transition: background-color 0.15s ease;
-            }
-            
-            .sp-history-chip:hover {
-                background-color: var(--vscode-list-activeSelectionBackground);
-            }
-            
-            .sp-history-chip-value {
-                color: var(--vscode-numberLiteral-foreground);
-                font-family: var(--vscode-editor-font-family);
-            }
-            
-            /* Search Bar */
-            .sp-search-bar {
-                margin-bottom: var(--sp-md);
-                padding: var(--sp-sm);
-                background-color: var(--vscode-panel-background);
-                border: 1px solid var(--vscode-panel-border);
-                border-radius: var(--sp-radius);
-            }
-            
-            .sp-search-input-wrapper {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-sm);
-            }
-            
-            .sp-search-icon {
-                color: var(--vscode-descriptionForeground);
-                font-size: 12px;
-            }
-            
-            .sp-search-input {
-                flex: 1;
-                padding: var(--sp-xs) var(--sp-sm);
-                border: 1px solid var(--vscode-input-border);
-                border-radius: var(--sp-radius);
-                background-color: var(--vscode-input-background);
-                color: var(--vscode-input-foreground);
-                font-size: 13px;
-            }
-            
-            .sp-search-results {
-                max-height: 150px;
-                overflow-y: auto;
-                margin-top: var(--sp-sm);
-            }
-            
-            /* Results Section */
-            .sp-results-header {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: var(--sp-md);
-                background-color: var(--vscode-panel-background);
-                border-bottom: 1px solid var(--vscode-panel-border);
-            }
-            
-            .sp-results-actions {
-                display: flex;
-                gap: var(--sp-xs);
-            }
-            
-            /* Full Value */
-            .sp-full-value {
-                font-family: var(--vscode-editor-font-family);
-                font-size: 14px;
-                color: var(--vscode-foreground);
-            }
-            
-            .sp-full-value-label {
-                font-size: 10px;
-                color: var(--vscode-descriptionForeground);
-                margin-bottom: 2px;
-            }
-            
-            .sp-full-value-content {
-                font-size: 16px;
-                font-weight: 500;
-                color: var(--vscode-foreground);
-            }
-            
-            /* Field List */
-            .sp-field-list {
-                display: flex;
-                flex-direction: column;
-            }
-            
-            /* ===== Section Header ===== */
-            .sp-section-title-wrapper {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-sm);
-            }
-            
-            .sp-bit-count {
-                font-size: 11px;
-                color: var(--vscode-badge-foreground);
-                padding: 2px 8px;
-                background: var(--vscode-badge-background);
-                border-radius: 12px;
-                font-weight: 500;
-            }
-            
-            /* ===== Bit Field Visualization ===== */
-            .sp-bitfield-viz {
-                padding: var(--sp-md);
-                background: var(--vscode-editor-background);
-                border-bottom: 1px solid var(--vscode-panel-border);
-                overflow-x: auto;
-            }
-            
-            .sp-bitfield-bar {
-                display: flex;
-                height: 32px;
-                border-radius: var(--sp-radius-sm);
-                overflow: hidden;
-                box-shadow: var(--sp-shadow-sm);
-            }
-            
-            .sp-bitfield-segment {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 0 var(--sp-xs);
-                font-size: 10px;
-                font-weight: 600;
-                color: var(--vscode-editor-background);
-                cursor: pointer;
-                transition: var(--sp-transition);
-                position: relative;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-            
-            .sp-bitfield-segment:hover {
-                filter: brightness(1.2);
-                transform: scaleY(1.05);
-            }
-            
-            .sp-bitfield-segment.struct { background: var(--sp-type-struct); }
-            .sp-bitfield-segment.union { background: var(--sp-type-union); }
-            .sp-bitfield-segment.uint { background: var(--sp-type-uint); }
-            .sp-bitfield-segment.bool { background: var(--sp-type-bool); }
-            
-            .sp-field-header {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: var(--sp-sm) var(--sp-md);
-                background-color: var(--vscode-panel-background);
-                border-bottom: 2px solid var(--vscode-panel-border);
-                font-size: 11px;
-                font-weight: 600;
-                color: var(--vscode-descriptionForeground);
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            
-            .sp-field-header-main {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-sm);
-                flex: 2;
-            }
-            
-            .sp-field-header-values {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-md);
-                flex: 1;
-                justify-content: flex-end;
-            }
-            
-            .sp-field-h-expand { width: 16px; }
-            .sp-field-h-type { min-width: 70px; }
-            .sp-field-h-name { flex: 1; }
-            .sp-field-h-meta { min-width: 80px; text-align: right; }
-            .sp-field-h-dec, .sp-field-h-hex, .sp-field-h-input { 
-                min-width: 60px; 
-                text-align: center; 
-            }
-            
-            .sp-field-row {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 10px var(--sp-md);
-                border-bottom: 1px solid var(--vscode-panel-border);
-                transition: var(--sp-transition);
-                gap: var(--sp-md);
-            }
-            
-            .sp-field-row:hover {
-                background-color: var(--vscode-list-hoverBackground);
-            }
-            
-            .sp-field-row:last-child {
-                border-bottom: none;
-            }
-            
-            .sp-field-row:nth-child(even) {
-                background-color: rgba(255, 255, 255, 0.02);
-            }
-            
-            .sp-field-row:nth-child(even):hover {
-                background-color: var(--vscode-list-hoverBackground);
-            }
-            
-            .sp-field-main {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-sm);
-                flex: 2;
-                min-width: 0;
-            }
-            
-            .sp-field-values {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-md);
-                flex: 1;
-                justify-content: flex-end;
-            }
-            
-            .sp-expand-icon {
-                width: 16px;
-                height: 16px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 10px;
-                cursor: pointer;
-                transition: transform 0.2s ease;
-                color: var(--vscode-descriptionForeground);
-                flex-shrink: 0;
-            }
-            
-            .sp-expand-icon.expandable {
-                cursor: pointer;
-            }
-            
-            .sp-expand-icon.expandable:hover {
-                color: var(--vscode-foreground);
-            }
-            
-            .sp-expand-icon.expanded {
-                transform: rotate(90deg);
-            }
-            
-            .sp-type-indicator {
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-                flex-shrink: 0;
-                box-shadow: 0 0 0 2px var(--vscode-editor-background);
-            }
-            
-            .sp-type-indicator.struct { 
-                background: var(--sp-type-struct);
-                box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-struct-bg);
-            }
-            .sp-type-indicator.union { 
-                background: var(--sp-type-union);
-                box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-union-bg);
-            }
-            .sp-type-indicator.uint { 
-                background: var(--sp-type-uint);
-                box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-uint-bg);
-            }
-            .sp-type-indicator.bool { 
-                background: var(--sp-type-bool);
-                box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 4px var(--sp-type-bool-bg);
-            }
-            
-            .sp-field-name {
-                font-weight: 600;
-                font-size: 13px;
-                color: var(--vscode-foreground);
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-                flex: 1;
-                min-width: 0;
-            }
-            
-            .sp-field-type {
-                font-size: 11px;
-                font-weight: 500;
-                padding: 2px 8px;
-                border-radius: var(--sp-radius-sm);
-                flex-shrink: 0;
-                font-family: var(--vscode-editor-font-family);
-            }
-            
-            .sp-field-type.struct { 
-                color: var(--sp-type-struct);
-                background: var(--sp-type-struct-bg);
-            }
-            .sp-field-type.union { 
-                color: var(--sp-type-union);
-                background: var(--sp-type-union-bg);
-            }
-            .sp-field-type.uint { 
-                color: var(--sp-type-uint);
-                background: var(--sp-type-uint-bg);
-            }
-            .sp-field-type.bool { 
-                color: var(--sp-type-bool);
-                background: var(--sp-type-bool-bg);
-            }
-            
-            .sp-field-meta {
-                display: flex;
-                align-items: center;
-                gap: var(--sp-xs);
-                font-size: 11px;
-                color: var(--vscode-descriptionForeground);
-                font-family: var(--vscode-editor-font-family);
-                flex-shrink: 0;
-            }
-            
-            .sp-field-bits {
-                font-weight: 600;
-                color: var(--vscode-foreground);
-            }
-            
-            .sp-field-offset::before {
-                content: '@';
-                opacity: 0.5;
-            }
-            
-            .sp-field-dec {
-                font-family: var(--vscode-editor-font-family);
-                font-size: 13px;
-                font-weight: 600;
-                color: var(--vscode-numberLiteral-foreground);
-                min-width: 50px;
-                text-align: center;
-                padding: 4px 8px;
-                background: var(--vscode-editor-background);
-                border-radius: var(--sp-radius-sm);
-            }
-            
-            .sp-field-hex {
-                font-family: var(--vscode-editor-font-family);
-                font-size: 12px;
-                font-weight: 500;
-                color: var(--vscode-textPreformat-foreground);
-                min-width: 60px;
-                text-align: center;
-                padding: 4px 8px;
-                background: var(--vscode-editor-background);
-                border-radius: var(--sp-radius-sm);
-            }
-            
-            .sp-field-input {
-                width: 80px;
-                padding: 6px 10px;
-                border: 1px solid var(--vscode-input-border);
-                border-radius: var(--sp-radius-sm);
-                background: var(--vscode-input-background);
-                color: var(--vscode-input-foreground);
-                font-family: var(--vscode-editor-font-family);
-                font-size: 13px;
-                font-weight: 500;
-                text-align: center;
-                transition: var(--sp-transition);
-            }
-            
-            .sp-field-input:hover {
-                border-color: var(--vscode-focusBorder);
-            }
-            
-            .sp-field-input:focus {
-                outline: none;
-                border-color: var(--vscode-focusBorder);
-                box-shadow: 0 0 0 2px var(--vscode-focusBorder);
-            }
-            
-            /* Tree */
-            .sp-tree {
-                display: flex;
-                flex-direction: column;
-                gap: 2px;
-            }
-            
-            .sp-field-row.highlighted {
-                background-color: var(--vscode-editor-findMatchHighlightBackground);
-            }
-            
-            .sp-expand-icon {
-                width: 16px;
-                height: 16px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 10px;
-                cursor: pointer;
-                transition: transform 0.2s ease;
-            }
-            
-            .sp-expand-icon.expanded {
-                transform: rotate(90deg);
-            }
-            
-            .sp-type-icon {
-                width: 10px;
-                height: 10px;
-                border-radius: 50%;
-                flex-shrink: 0;
-            }
-            
-            .sp-type-icon.struct { background-color: var(--sp-type-struct); }
-            .sp-type-icon.union { background-color: var(--sp-type-union); }
-            .sp-type-icon.uint { background-color: var(--sp-type-uint); }
-            .sp-type-icon.bool { background-color: var(--sp-type-bool); }
-            
-            .sp-field-name {
-                font-weight: 600;
-                min-width: 100px;
-                color: var(--vscode-foreground);
-            }
-            
-            .sp-field-type {
-                font-size: 11px;
-                min-width: 60px;
-                color: var(--vscode-descriptionForeground);
-            }
-            
-            .sp-field-type.struct { color: var(--sp-type-struct); }
-            .sp-field-type.union { color: var(--sp-type-union); }
-            
-            .sp-field-input {
-                width: 60px;
-                padding: 2px 6px;
-                border: 1px solid var(--vscode-input-border);
-                border-radius: 4px;
-                background: var(--vscode-input-background);
-                color: var(--vscode-input-foreground);
-                font-family: var(--vscode-editor-font-family);
-                font-size: 12px;
-                text-align: right;
-            }
-            
-            .sp-field-input:focus {
-                outline: none;
-                border-color: var(--vscode-focusBorder);
-            }
-            
-            .sp-field-hex {
-                font-family: var(--vscode-editor-font-family);
-                font-size: 12px;
-                color: var(--vscode-numberLiteral-foreground);
-                min-width: 50px;
-            }
-            
-            .sp-field-binary {
-                font-family: var(--vscode-editor-font-family);
-                font-size: 11px;
-                color: var(--vscode-textPreformat-foreground);
-                letter-spacing: 0.5px;
-            }
-            
-            .sp-field-bits {
-                font-size: 11px;
-                color: var(--vscode-descriptionForeground);
-                margin-left: auto;
-            }
-            
-            .sp-children {
-                display: none;
-                margin-left: var(--sp-xl);
-                border-left: 2px solid var(--vscode-panel-border);
-                padding-left: var(--sp-sm);
-                background: rgba(0, 0, 0, 0.02);
-            }
-            
-            .sp-children.expanded {
-                display: block;
-                animation: slideDown 0.2s ease-out;
-            }
-            
-            @keyframes slideDown {
-                from {
-                    opacity: 0;
-                    transform: translateY(-8px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-            
-            /* Utilities */
-            .sp-mt-md { margin-top: var(--sp-md); }
-            .sp-mt-lg { margin-top: var(--sp-lg); }
-        `;
-    }
-
-    private _getJavaScriptCode(): string {
-        return `
-            const vscode = acquireVsCodeApi();
-            let currentFields = [];
-            let expandedNodes = new Set();
-            let currentHexValue = '';
-
-            // Initialize event listeners
-            document.addEventListener('DOMContentLoaded', function() {
-                setupEventListeners();
-            });
-
-            function setupEventListeners() {
-                // Import button
-                document.getElementById('btnImport')?.addEventListener('click', () => {
-                    vscode.postMessage({ command: 'importJson' });
-                });
-
-                // Parse button
-                document.getElementById('btnParse')?.addEventListener('click', parseValue);
-
-                // Hex input - Enter key to parse
-                document.getElementById('hexInput')?.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        parseValue();
-                    }
-                });
-
-                // Search button
-                document.getElementById('btnSearch')?.addEventListener('click', () => {
-                    const searchSection = document.getElementById('searchSection');
-                    searchSection.style.display = searchSection.style.display === 'none' ? 'block' : 'none';
-                    if (searchSection.style.display === 'block') {
-                        document.getElementById('searchInput').focus();
-                    }
-                });
-
-                // Close search button
-                document.getElementById('btnCloseSearch')?.addEventListener('click', () => {
-                    document.getElementById('searchSection').style.display = 'none';
-                });
-
-                // Search input
-                document.getElementById('searchInput')?.addEventListener('input', (e) => {
-                    const searchTerm = e.target.value.trim();
-                    if (searchTerm.length >= 2) {
-                        vscode.postMessage({ command: 'search', searchTerm });
-                    }
-                });
-
-                // Copy results button
-                document.getElementById('btnCopyResults')?.addEventListener('click', () => {
-                    copyAllResults();
-                });
-
-                // Clear history button
-                document.getElementById('btnClearHistory')?.addEventListener('click', () => {
-                    vscode.postMessage({ command: 'clearHistory' });
-                });
-
-                // History chips
-                document.querySelectorAll('.sp-history-chip').forEach(item => {
-                    item.addEventListener('click', () => {
-                        const index = item.getAttribute('data-index');
-                        vscode.postMessage({ command: 'loadHistory', index: parseInt(index) });
-                    });
-                });
-                
-                // Field input editing
-                document.querySelectorAll('.sp-field-input').forEach(input => {
-                    input.addEventListener('change', (e) => {
-                        const fieldName = e.target.getAttribute('data-field');
-                        const newValue = parseInt(e.target.value);
-                        const bits = parseInt(e.target.getAttribute('data-bits'));
-                        
-                        if (isNaN(newValue) || newValue < 0 || newValue > ((1 << bits) - 1)) {
-                            vscode.postMessage({ command: 'alert', text: 'Value out of range for ' + fieldName });
-                            return;
-                        }
-                        
-                        vscode.postMessage({
-                            command: 'updateField',
-                            fieldPath: [fieldName],
-                            newValue: newValue
-                        });
-                    });
-                });
-            }
-
-            function parseValue() {
-                const hexValue = document.getElementById('hexInput')?.value?.trim();
-                
-                if (!hexValue) {
-                    vscode.postMessage({ command: 'alert', text: 'Please enter a hex value' });
-                    return;
-                }
-                
-                if (!currentStructName) {
-                    vscode.postMessage({ command: 'alert', text: 'Please select a struct from sidebar' });
-                    return;
-                }
-                
-                currentHexValue = hexValue;
-                
-                vscode.postMessage({
-                    command: 'parse',
-                    hexValue: hexValue,
-                    structName: currentStructName
-                });
-            }
-
-            function copyAllResults() {
-                const fullValue = document.querySelector('.sp-full-value-content')?.textContent || '';
-                vscode.postMessage({ command: 'copy', text: fullValue });
-            }
-
-            window.addEventListener('message', event => {
-                const message = event.data;
-                switch (message.command) {
-                    case 'setHexValue':
-                        const hexInput = document.getElementById('hexInput');
-                        if (hexInput) hexInput.value = message.hexValue;
-                        break;
-                    case 'selectStruct':
-                        currentStructName = message.structName;
-                        break;
-                    case 'parseResult':
-                        displayResults(message);
-                        // 回刷实际使用的16进制值到输入框
-                        if (message.actualHexValue) {
-                            const hexInput = document.getElementById('hexInput');
-                            if (hexInput) {
-                                hexInput.value = message.actualHexValue;
-                            }
-                        }
-                        break;
-                    case 'fieldUpdated':
-                        // 立即更新DEC、HEX列和输入框的值
-                        const simpleFieldId = message.fieldPath[message.fieldPath.length - 1].replace(/[^a-zA-Z0-9]/g, '_');
-                        
-                        console.log('[StructParser] Updating field:', simpleFieldId, message);
-                        
-                        const decEl = document.getElementById('val-dec-' + simpleFieldId);
-                        const hexEl = document.getElementById('val-hex-' + simpleFieldId);
-                        const inputEl = document.getElementById('input-' + simpleFieldId);
-                        
-                        if (decEl) {
-                            decEl.textContent = message.newValue;
-                            console.log('[StructParser] Updated DEC:', decEl.textContent);
-                        }
-                        if (hexEl) {
-                            hexEl.textContent = message.newHex;
-                            console.log('[StructParser] Updated HEX:', hexEl.textContent);
-                        }
-                        if (inputEl) {
-                            inputEl.value = message.newValue;
-                            console.log('[StructParser] Updated Input:', inputEl.value);
-                        }
-                        
-                        // 如果有完整的16进制值，也更新输入框
-                        if (message.fullHexValue) {
-                            const hexInput = document.getElementById('hexInput');
-                            if (hexInput) {
-                                hexInput.value = message.fullHexValue;
-                                console.log('[StructParser] Updated HexInput:', hexInput.value);
-                            }
-                        }
-                        break;
-                    case 'searchResults':
-                        displaySearchResults(message.results);
-                        break;
-                    case 'historyCleared':
-                        const historySection = document.getElementById('historySection');
-                        if (historySection) historySection.style.display = 'none';
-                        break;
-                    case 'loadHistoryItem':
-                        const hexIn = document.getElementById('hexInput');
-                        if (hexIn) hexIn.value = message.hexValue;
-                        currentStructName = message.structName;
-                        break;
-                }
-            });
-
-            function displayResults(data) {
-                currentFields = data.fields;
-                
-                if (data.error) {
-                    vscode.postMessage({ command: 'alert', text: data.error });
-                    return;
-                }
-                
-                // Update field values in Struct Definition section
-                updateFieldValues(data.fields);
-                
-                // Render bit field visualization
-                renderBitFieldVisualization(data.struct.fields, data.struct.bits);
-                
-                // Show export button
-                const exportContainer = document.getElementById('exportContainer');
-                if (exportContainer) {
-                    exportContainer.style.display = 'block';
-                }
-            }
-            
-            function renderBitFieldVisualization(fields, totalBits) {
-                const vizContainer = document.getElementById('bitFieldViz');
-                if (!vizContainer) return;
-                
-                let html = '<div class="sp-bitfield-bar">';
-                
-                fields.forEach(field => {
-                    const widthPercent = (field.bits / totalBits * 100).toFixed(2);
-                    const typeClass = field.type === 'struct' ? 'struct' : 
-                                     field.type === 'union' ? 'union' : 
-                                     field.type === 'bool' ? 'bool' : 'uint';
-                    
-                    html += '<div class="sp-bitfield-segment ' + typeClass + '" ';
-                    html += 'style="width: ' + widthPercent + '%" ';
-                    html += 'title="' + field.name + ' (' + field.bits + ' bits)" ';
-                    html += 'data-field="' + field.name + '">';
-                    
-                    if (widthPercent > 8) {
-                        html += field.name;
-                    } else if (widthPercent > 4) {
-                        html += field.name.substring(0, 3);
-                    }
-                    
-                    html += '</div>';
-                });
-                
-                html += '</div>';
-                vizContainer.innerHTML = html;
-                vizContainer.style.display = 'block';
-                
-                // Add click handlers to segments
-                vizContainer.querySelectorAll('.sp-bitfield-segment').forEach(segment => {
-                    segment.addEventListener('click', () => {
-                        const fieldName = segment.getAttribute('data-field');
-                        const fieldRow = document.querySelector('.sp-field-row[data-field="' + fieldName + '"]');
-                        if (fieldRow) {
-                            fieldRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            fieldRow.style.background = 'var(--vscode-list-activeSelectionBackground)';
-                            setTimeout(() => {
-                                fieldRow.style.background = '';
-                            }, 1000);
-                        }
-                    });
-                });
-            }
-            
-            function updateFieldValues(fields) {
-                fields.forEach(field => {
-                    const fieldId = field.name.replace(/[^a-zA-Z0-9]/g, '_');
-                    const decEl = document.getElementById('val-dec-' + fieldId);
-                    const hexEl = document.getElementById('val-hex-' + fieldId);
-                    const inputEl = document.getElementById('input-' + fieldId);
-                    
-                    if (decEl) decEl.textContent = field.value;
-                    if (hexEl) hexEl.textContent = field.hex;
-                    if (inputEl) inputEl.value = field.value;
-                    
-                    // Recursively update children
-                    if (field.fields && field.fields.length > 0) {
-                        updateFieldValues(field.fields);
-                    }
-                });
-            }
-
-            function renderTree(fields, path) {
-                let html = '';
-                
-                fields.forEach(field => {
-                    const currentPath = [...path, field.name];
-                    const pathStr = currentPath.join('.');
-                    const hasChildren = field.fields && field.fields.length > 0;
-                    const isExpanded = expandedNodes.has(pathStr);
-                    
-                    html += '<div class="sp-field-row" data-path="' + pathStr + '">';
-                    
-                    if (hasChildren) {
-                        html += '<span class="sp-expand-icon ' + (isExpanded ? 'expanded' : '') + '" data-path="' + pathStr + '">▶</span>';
-                    } else {
-                        html += '<span class="sp-expand-icon" style="visibility: hidden;">▶</span>';
-                    }
-                    
-                    const typeClass = field.type === 'struct' ? 'struct' : field.type === 'union' ? 'union' : 'uint';
-                    html += '<span class="sp-type-icon ' + typeClass + '"></span>';
-                    html += '<span class="sp-field-name">' + field.name + '</span>';
-                    html += '<span class="sp-field-type ' + typeClass + '">' + field.type + '</span>';
-                    
-                    html += '<input type="number" class="sp-field-input" value="' + field.value + '" ';
-                    html += 'min="0" max="' + ((1 << field.bits) - 1) + '" ';
-                    html += 'data-path="' + currentPath.join(',') + '" />';
-                    
-                    html += '<span class="sp-field-hex">' + field.hex + '</span>';
-                    html += '<span class="sp-field-binary">' + field.binary + '</span>';
-                    html += '<span class="sp-field-bits">' + field.bits + ' bits</span>';
-                    
-                    html += '</div>';
-                    
-                    if (hasChildren) {
-                        html += '<div class="sp-children ' + (isExpanded ? 'expanded' : '') + '" id="children-' + pathStr + '">';
-                        html += renderTree(field.fields, currentPath);
-                        html += '</div>';
-                    }
-                });
-                
-                return html;
-            }
-
-            function attachTreeEventListeners() {
-                // Expand/collapse
-                document.querySelectorAll('.sp-expand-icon').forEach(icon => {
-                    icon.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const pathStr = icon.getAttribute('data-path');
-                        toggleNode(pathStr);
-                    });
-                });
-                
-                // Field input change
-                document.querySelectorAll('.sp-field-input').forEach(input => {
-                    input.addEventListener('change', (e) => {
-                        const pathStr = e.target.getAttribute('data-path');
-                        const newValue = parseInt(e.target.value);
-                        vscode.postMessage({
-                            command: 'updateField',
-                            fieldPath: pathStr.split(','),
-                            newValue: newValue
-                        });
-                    });
-                });
-            }
-
-            function toggleNode(pathStr) {
-                if (expandedNodes.has(pathStr)) {
-                    expandedNodes.delete(pathStr);
-                } else {
-                    expandedNodes.add(pathStr);
-                }
-                
-                const children = document.getElementById('children-' + pathStr);
-                if (children) {
-                    children.classList.toggle('expanded');
-                }
-                
-                const icon = document.querySelector('.sp-expand-icon[data-path="' + pathStr + '"]');
-                if (icon) {
-                    icon.classList.toggle('expanded');
-                }
-            }
-
-            function updateFieldDisplay(data) {
-                const input = document.querySelector('.sp-field-input[data-path="' + data.fieldPath.join(',') + '"]');
-                if (input) {
-                    input.value = data.newValue;
-                }
-                
-                // Update full value display
-                const fullValueContent = document.querySelector('.sp-full-value-content');
-                if (fullValueContent && data.fullHexValue) {
-                    fullValueContent.textContent = data.fullHexValue;
-                }
-            }
-
-            function displaySearchResults(results) {
-                const container = document.getElementById('searchResults');
-                
-                if (results.length === 0) {
-                    container.innerHTML = '<div class="sp-hint">No fields found</div>';
-                    return;
-                }
-                
-                let html = '<div style="display: flex; flex-direction: column; gap: 4px;">';
-                results.forEach(result => {
-                    html += '<div class="sp-history-item" data-path="' + result.path.join('.') + '">';
-                    html += '<span>' + result.path.join('.') + '</span>';
-                    html += '<span style="color: var(--vscode-descriptionForeground); margin-left: auto;">' + result.field.type + '</span>';
-                    html += '</div>';
-                });
-                html += '</div>';
-                
-                container.innerHTML = html;
-                
-                // Add click handlers
-                container.querySelectorAll('.sp-history-item').forEach(item => {
-                    item.addEventListener('click', () => {
-                        const pathStr = item.getAttribute('data-path');
-                        highlightField(pathStr);
-                    });
-                });
-            }
-
-            function highlightField(pathStr) {
-                // Expand all parent nodes
-                const parts = pathStr.split('.');
-                for (let i = 1; i <= parts.length; i++) {
-                    const partialPath = parts.slice(0, i).join('.');
-                    if (!expandedNodes.has(partialPath)) {
-                        expandedNodes.add(partialPath);
-                        const children = document.getElementById('children-' + partialPath);
-                        if (children) {
-                            children.classList.add('expanded');
-                        }
-                        const icon = document.querySelector('.sp-expand-icon[data-path="' + partialPath + '"]');
-                        if (icon) {
-                            icon.classList.add('expanded');
-                        }
-                    }
-                }
-                
-                // Highlight the field
-                document.querySelectorAll('.sp-field-row').forEach(row => {
-                    row.classList.remove('highlighted');
-                });
-                
-                const targetRow = document.querySelector('.sp-field-row[data-path="' + pathStr + '"]');
-                if (targetRow) {
-                    targetRow.classList.add('highlighted');
-                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }
-        `;
-    }
-
     public dispose() {
-        // Remove from panels map
         for (const [name, panel] of StructParserPanel.panels) {
             if (panel === this) {
                 StructParserPanel.panels.delete(name);
