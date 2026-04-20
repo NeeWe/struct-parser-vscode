@@ -4,9 +4,16 @@ A VS Code extension for visualizing C-style struct data from hex values. Works w
 
 ## Features
 
+- **Modern Card-Based UI**: Clean, modern interface with sidebar + main panel layout
 - **Hex Value Parsing**: Parse hex values (e.g., `0x1234ABCD`) into struct fields
-- **Visual Field Breakdown**: See each field's binary representation, decimal value, and hex value
-- **Struct Browser**: Tree view of all structs and their fields
+- **Tree View with Column Alignment**: CSS Grid-based tree view with aligned columns (Name/Type/Offset/Bits/Value/Hex)
+- **Nested Struct/Union Support**: Expand/collapse nested structures with proper indentation
+- **Inline Field Editing**: Edit field values directly, auto-recalculate hex and parent values
+- **Field Search & Filter**: Real-time field filtering with auto-expand for matching nodes
+- **Collapse/Expand All**: One-click toggle to collapse or expand all tree nodes
+- **Hide Zero Fields**: Toggle to hide fields with zero values
+- **Struct Sidebar**: Browse and select structs from the Activity Bar sidebar
+- **Import JSON**: Import struct definitions from JSON files (deduplication supported)
 - **Context Menu Integration**: Right-click any hex value to parse it
 
 ## Requirements
@@ -55,22 +62,45 @@ Or the extension will automatically look for `output.json` or `structs.json` in 
 
 ### Parse a Hex Value
 
-**Method 1: Using the Viewer**
-1. Open the Struct Parser Viewer
-2. Enter a hex value (e.g., `0x1234ABCD` or `1234ABCD`)
-3. Select a struct from the dropdown
-4. Click "Parse"
+1. Select a struct from the sidebar
+2. Enter a hex value (e.g., `0x1234ABCD` or `1234ABCD`) in the input field
+3. Click "Parse" or press Enter
 
-**Method 2: From Editor Selection**
+### Edit Field Values
+
+1. Click on any field's value input in the tree view
+2. Enter a new value (validated against the field's bit width)
+3. The hex value and all related fields update automatically
+
+### Search Fields
+
+1. Type in the search box in the "Parsed Fields" header
+2. Matching fields are shown, non-matching fields are hidden
+3. Parent nodes of matching fields are auto-expanded
+4. Clear the search to restore all fields
+
+### From Editor Selection
+
 1. Select a hex value in any editor
 2. Right-click and select "Parse Hex Value"
 3. The viewer will open with the value pre-filled
 
-### View Struct Definitions
+## UI Layout
 
-1. Open the Explorer sidebar
-2. Look for the "Struct List" view
-3. Expand structs to see their fields
+```
+┌──────────────────────────────────────────────────────────────┐
+│  ⚡ StructName [struct]          32 bits · 4 bytes           │
+├──────────────────────────────────────────────────────────────┤
+│  0x [ Enter hex value...                        ] [Parse]    │
+├──────────────────────────────────────────────────────────────┤
+│  PARSED FIELDS  5  [🔍 Filter fields...]  [Collapse All]    │
+│  Name        Type    Offset  Bits  Value        Hex          │
+│  ▶ field1    uint8   @0      8b    [255]        0xFF         │
+│  ▼ nested    struct  @8      16b                             │
+│    ▶ low     uint16  @8      16b   [0]          0x0000       │
+│  ▶ field2    uint32  @24     32b   [0]          0x00000000   │
+└──────────────────────────────────────────────────────────────┘
+```
 
 ## Example
 
@@ -89,14 +119,7 @@ struct ControlReg {
 
 And hex value: `0xABCD1234`
 
-The extension will display:
-
-| Field | Type | Bits | Binary | Value | Hex |
-|-------|------|------|--------|-------|-----|
-| enable | uint1 | 1 | 1 | 1 | 0x1 |
-| interrupt | uint1 | 1 | 0 | 0 | 0x0 |
-| mode | uint2 | 2 | 10 | 2 | 0x2 |
-| ... | ... | ... | ... | ... | ... |
+The extension will display each field with its offset, bit width, decimal value, and hex value in an aligned tree view.
 
 ## Development
 
@@ -117,6 +140,30 @@ npm run watch
 ```bash
 vsce package
 ```
+
+## Changelog
+
+### 2026-04-21
+
+- feat: CSS Grid-based column alignment for tree view (Name/Type/Offset/Bits/Value/Hex)
+- feat: Column headers for tree view
+- feat: Collapse/Expand All toggle button
+- feat: Field search & filter with auto-expand
+- feat: Import JSON button in sidebar (replaces Collapse All)
+- feat: Auto-expand all nodes after value modification
+- fix: 32-bit field value editing (JS bit shift overflow)
+- fix: Deduplicate struct types on JSON import
+- fix: Main panel not displaying on first struct selection
+- style: Optimized column widths, spacing, and font sizes
+- style: Search box with underline focus style
+
+### 2026-04-18
+
+- Initial release with modern card-based UI
+- Tree view for field display with nested struct/union support
+- Inline field value editing
+- Sidebar struct browser with search
+- Hide zero fields toggle
 
 ## License
 
