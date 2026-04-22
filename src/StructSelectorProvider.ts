@@ -69,6 +69,9 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 case 'importJson':
                     await this._handleImportJson();
                     break;
+                case 'config':
+                    await this._handleConfig();
+                    break;
                 case 'refresh':
                     await this._loadStructData();
                     this._updateWebview();
@@ -701,6 +704,9 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     <button class="toolbar-btn" id="importJsonBtn">
                         <span>\uD83D\uDCE4</span> Import
                     </button>
+                    <button class="toolbar-btn" id="configBtn">
+                        <span>\u2699</span> Config
+                    </button>
                 </div>
 
                 <div class="struct-list" id="structList">
@@ -753,6 +759,10 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
                 document.getElementById('importJsonBtn').addEventListener('click', () => {
                     vscode.postMessage({ command: 'importJson' });
+                });
+
+                document.getElementById('configBtn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'config' });
                 });
 
                 document.getElementById('structList').addEventListener('click', (e) => {
