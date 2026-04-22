@@ -72,6 +72,9 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 case 'config':
                     await this._handleConfig();
                     break;
+                case 'selectConfig':
+                    await this._handleSelectConfig(message.configName);
+                    break;
                 case 'refresh':
                     await this._loadStructData();
                     this._updateWebview();
@@ -391,6 +394,18 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    private async _handleSelectConfig(configName: string) {
+        const config = vscode.workspace.getConfiguration('structParser');
+        const jsonPaths = config.get<Array<{name: string, path: string}>>('jsonPaths') || [];
+        
+        const selectedConfig = jsonPaths.find(c => c.name === configName);
+        if (selectedConfig) {
+            this._currentJsonConfig = configName;
+            await this._loadStructData();
+            this._updateWebview();
+        }
+    }
+
     private _getAllStructs(): StructDef[] {
         if (!this._structData) return [];
         const all = [...this._structData.structs, ...this._structData.unions];
@@ -400,6 +415,11 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             seen.add(s.type);
             return true;
         });
+    }
+
+    private _getJsonConfigs(): Array<{name: string, path: string}> {
+        const config = vscode.workspace.getConfiguration('structParser');
+        return config.get<Array<{name: string, path: string}>>('jsonPaths') || [];
     }
 
     private _updateWebview() {
@@ -548,6 +568,23 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     background: rgba(78, 201, 176, 0.15);
                     color: #4EC9B0;
                     border-color: rgba(78, 201, 176, 0.3);
+                }
+
+                .config-select {
+                    padding: 5px 8px;
+                    font-size: 11px;
+                    font-weight: 500;
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 4px;
+                    background: var(--vscode-input-background);
+                    color: var(--vscode-foreground);
+                    cursor: pointer;
+                    font-family: var(--vscode-font-family);
+                    min-width: 100px;
+                }
+
+                .config-select:focus {
+                    outline: 1px solid var(--vscode-focusBorder);
                 }
 
                 .struct-list {
@@ -714,9 +751,12 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     <button class="toolbar-btn" id="importJsonBtn">
                         <span>\uD83D\uDCE4</span> Import
                     </button>
-                    <button class="toolbar-btn" id="configBtn">
-                        <span>\u2699</span> Config
-                    </button>
+                    <select class="config-select" id="configSelect">
+                        <option value="">Select Config</option>
+                        ${this._getJsonConfigs().map(config => `
+                            <option value="${config.name}" ${this._currentJsonConfig === config.name ? 'selected' : ''}>${config.name}</option>
+                        `).join('')}
+                    </select>
                 </div>
 
                 <div class="struct-list" id="structList">
@@ -773,6 +813,14 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
                 document.getElementById('configBtn').addEventListener('click', () => {
                     vscode.postMessage({ command: 'config' });
+                });
+
+                document.getElementById('configSelect').addEventListener('change', (e) => {
+                    const select = e.target;
+                    const configName = select.value;
+                    if (configName) {
+                        vscode.postMessage({ command: 'selectConfig', configName });
+                    }
                 });
 
                 document.getElementById('structList').addEventListener('click', (e) => {
