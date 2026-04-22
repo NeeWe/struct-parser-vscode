@@ -223,13 +223,14 @@ export class StructParserPanel {
             const endPos = field.offset + field.bits;
             const fieldBits = binaryValue.substring(startPos, endPos);
             const fieldValue = fieldBits.length > 0 ? parseInt(fieldBits, 2) : 0;
+            const fieldValueBigInt = fieldBits.length > 0 ? BigInt('0b' + fieldBits) : BigInt(0);
 
             const { fields: _ignored, ...fieldWithoutFields } = field;
             const parsedField: ParsedField = {
                 ...fieldWithoutFields,
                 binary: fieldBits,
                 value: fieldValue,
-                hex: '0x' + fieldValue.toString(16).toUpperCase(),
+                hex: '0x' + fieldValueBigInt.toString(16).toUpperCase(),
                 fullHexValue: '0x' + fullValue.toString(16).toUpperCase()
             };
 
@@ -241,7 +242,7 @@ export class StructParserPanel {
         });
     }
 
-    private _updateFieldValue(fieldPath: string[], newValue: number) {
+    private _updateFieldValue(fieldPath: string[], newValue: string) {
         if (!this._currentParsedData) return;
 
         const findField = (fields: ParsedField[], path: string[]): ParsedField | null => {
@@ -256,14 +257,16 @@ export class StructParserPanel {
         const targetField = findField(this._currentParsedData.fields, fieldPath);
         if (!targetField) return;
 
-        const maxValue = targetField.bits >= 32 ? 4294967295 : (1 << targetField.bits) - 1;
-        if (newValue < 0 || newValue > maxValue) {
-            vscode.window.showWarningMessage(`Value out of range (0-${maxValue})`);
+        const maxValue = targetField.bits >= 32 ? BigInt('4294967295') : (BigInt(1) << BigInt(targetField.bits)) - BigInt(1);
+        const newValueBigInt = BigInt(newValue);
+        
+        if (newValueBigInt < 0n || newValueBigInt > maxValue) {
+            vscode.window.showWarningMessage(`Value out of range (0-${maxValue.toString()})`);
             return;
         }
 
         const binaryStr = this._currentParsedData.binaryValue;
-        const newBits = newValue.toString(2).padStart(targetField.bits, '0');
+        const newBits = newValueBigInt.toString(2).padStart(targetField.bits, '0');
         const newBinaryStr =
             binaryStr.substring(0, targetField.offset) +
             newBits +
@@ -958,7 +961,7 @@ export class StructParserPanel {
 
                 .tree-header {
                     display: grid;
-                    grid-template-columns: 1fr 80px 50px 50px 90px 70px;
+                    grid-template-columns: 1fr 120px 50px 50px 120px 100px;
                     column-gap: 16px;
                     align-items: center;
                     padding: 6px 24px;
@@ -988,6 +991,10 @@ export class StructParserPanel {
                 }
 
                 .tree-header .tree-hex {
+                    text-align: right;
+                }
+
+                .tree-header .tree-hex:nth-child(5) {
                     text-align: right;
                 }
 
@@ -1238,21 +1245,37 @@ export class StructParserPanel {
                     if (e.target.classList.contains('tree-value')) {
                         const fieldPath = JSON.parse(e.target.getAttribute('data-path') || '[]');
                         const bits = parseInt(e.target.getAttribute('data-bits'));
-                        const maxVal = bits >= 32 ? 4294967295 : (1 << bits) - 1;
                         const raw = e.target.value.trim();
-                        const newValue = raw.startsWith('0x') || raw.startsWith('0X')
-                            ? parseInt(raw, 16)
-                            : parseInt(raw, 10);
-                        if (isNaN(newValue)) {
+                        
+                        // 计算最大值（使用 BigInt 避免溢出）
+                        const maxVal = bits >= 32 ? BigInt('4294967295') : (BigInt(1) << BigInt(bits)) - BigInt(1);
+                        
+                        // 解析值（支持十进制和十六进制）
+                        let newValueBigInt;
+                        if (raw.startsWith('0x') || raw.startsWith('0X')) {
+                            try {
+                                newValueBigInt = BigInt(raw);
+                            } catch {
+                                e.target.value = e.target.getAttribute('data-orig') || '0';
+                                return;
+                            }
+                        } else {
+                            const num = parseInt(raw, 10);
+                            if (isNaN(num)) {
+                                e.target.value = e.target.getAttribute('data-orig') || '0';
+                                return;
+                            }
+                            newValueBigInt = BigInt(num);
+                        }
+                        
+                        if (newValueBigInt < 0n || newValueBigInt > maxVal) {
+                            vscode.postMessage({ command: 'alert', text: 'Value out of range (0-' + maxVal.toString() + ')' });
                             e.target.value = e.target.getAttribute('data-orig') || '0';
                             return;
                         }
-                        if (newValue < 0 || newValue > maxVal) {
-                            vscode.postMessage({ command: 'alert', text: 'Value out of range (0-' + maxVal + ')' });
-                            e.target.value = e.target.getAttribute('data-orig') || '0';
-                            return;
-                        }
-                        vscode.postMessage({ command: 'updateField', fieldPath, newValue });
+                        
+                        // 发送字符串形式的值，避免精度丢失
+                        vscode.postMessage({ command: 'updateField', fieldPath, newValue: newValueBigInt.toString() });
                     }
                 }
 
