@@ -900,6 +900,22 @@ export class StructParserPanel {
                     transition: border-color 0.15s;
                     -moz-appearance: textfield;
                     appearance: textfield;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+
+                .tree-value:hover {
+                    overflow: visible;
+                    white-space: normal;
+                    z-index: 10;
+                    position: relative;
+                    min-width: 100%;
+                    max-width: 300px;
+                    background: var(--vscode-editor-background);
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+                    padding: 6px 12px;
+                    margin: -2px -10px;
                 }
 
                 .tree-value::-webkit-outer-spin-button,
@@ -1248,7 +1264,7 @@ export class StructParserPanel {
                         const raw = e.target.value.trim();
                         
                         // 计算最大值（使用 BigInt 避免溢出）
-                        const maxVal = bits >= 32 ? BigInt('4294967295') : (BigInt(1) << BigInt(bits)) - BigInt(1);
+                        const maxVal = (BigInt(1) << BigInt(bits)) - BigInt(1);
                         
                         // 解析值（支持十进制和十六进制）
                         let newValueBigInt;
