@@ -27,6 +27,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     
     private _view?: vscode.WebviewView;
     private _structData: StructJson | null = null;
+    private _lastJsonPath: string | null = null;
     private _extensionUri: vscode.Uri;
     private _onStructSelected: vscode.EventEmitter<StructDef> = new vscode.EventEmitter<StructDef>();
     public get onStructSelected(): vscode.Event<StructDef> { return this._onStructSelected.event; }
@@ -83,10 +84,16 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         const config = vscode.workspace.getConfiguration('structParser');
         const jsonPath = config.get<string>('jsonPath');
 
+        // 如果配置路径没有变化，且已经有数据，直接返回，避免重复加载
+        if (jsonPath === this._lastJsonPath && this._structData) {
+            return;
+        }
+
         if (jsonPath && fs.existsSync(jsonPath)) {
             try {
                 const content = fs.readFileSync(jsonPath, 'utf-8');
                 this._structData = JSON.parse(content);
+                this._lastJsonPath = jsonPath;
             } catch (error) {
                 vscode.window.showErrorMessage(`Failed to load struct JSON: ${error}`);
             }
@@ -103,6 +110,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                         try {
                             const content = fs.readFileSync(tryPath, 'utf-8');
                             this._structData = JSON.parse(content);
+                            this._lastJsonPath = tryPath;
                             break;
                         } catch (error) {
                         }
@@ -163,6 +171,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             try {
                 const content = fs.readFileSync(result[0].fsPath, 'utf-8');
                 this._structData = JSON.parse(content);
+                this._lastJsonPath = result[0].fsPath;
                 
                 const config = vscode.workspace.getConfiguration('structParser');
                 await config.update('jsonPath', result[0].fsPath, true);
