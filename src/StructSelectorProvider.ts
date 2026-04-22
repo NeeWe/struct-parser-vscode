@@ -66,9 +66,6 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 case 'importJson':
                     await this._handleImportJson();
                     break;
-                case 'config':
-                    await this._handleConfig();
-                    break;
                 case 'refresh':
                     this._loadStructData();
                     this._updateWebview();
@@ -183,39 +180,6 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 this._updateWebview();
             } catch (error) {
                 vscode.window.showErrorMessage(`Failed to load JSON: ${error}`);
-            }
-        }
-    }
-
-    private async _handleConfig() {
-        const config = vscode.workspace.getConfiguration('structParser');
-        const currentPath = config.get<string>('jsonPath') || '';
-        
-        const result = await vscode.window.showInputBox({
-            title: 'Struct Parser Configuration',
-            placeHolder: 'Enter the path to your struct JSON file',
-            value: currentPath,
-            prompt: 'Example: /Users/yourname/project/structs.json'
-        });
-        
-        if (result !== undefined) {
-            try {
-                if (result && !fs.existsSync(result)) {
-                    vscode.window.showWarningMessage(`File not found: ${result}`);
-                    return;
-                }
-                
-                await config.update('jsonPath', result, true);
-                this._loadStructData();
-                this._updateWebview();
-                
-                if (result) {
-                    vscode.window.showInformationMessage(`Configured JSON path: ${result}`);
-                } else {
-                    vscode.window.showInformationMessage('JSON path cleared');
-                }
-            } catch (error) {
-                vscode.window.showErrorMessage(`Failed to update config: ${error}`);
             }
         }
     }
@@ -533,9 +497,6 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     <button class="toolbar-btn" id="importJsonBtn">
                         <span>\uD83D\uDCE4</span> Import
                     </button>
-                    <button class="toolbar-btn" id="configBtn">
-                        <span>\u2699</span> Config
-                    </button>
                 </div>
 
                 <div class="struct-list" id="structList">
@@ -588,10 +549,6 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
                 document.getElementById('importJsonBtn').addEventListener('click', () => {
                     vscode.postMessage({ command: 'importJson' });
-                });
-
-                document.getElementById('configBtn').addEventListener('click', () => {
-                    vscode.postMessage({ command: 'config' });
                 });
 
                 document.getElementById('structList').addEventListener('click', (e) => {
