@@ -465,6 +465,15 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     color: var(--vscode-descriptionForeground);
                 }
 
+                .current-config {
+                    font-size: 10px;
+                    color: var(--vscode-descriptionForeground);
+                    background: var(--vscode-input-background);
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 4px;
+                    padding: 2px 8px;
+                }
+
                 .sidebar-search {
                     padding: 8px 12px;
                     border-bottom: 1px solid var(--vscode-panel-border);
@@ -688,6 +697,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             <div class="sidebar">
                 <div class="sidebar-header">
                     <span class="sidebar-title">Struct Parser</span>
+                    ${this._currentJsonConfig ? `<span class="current-config">${this._currentJsonConfig}</span>` : ''}
                 </div>
 
                 <div class="sidebar-search">
