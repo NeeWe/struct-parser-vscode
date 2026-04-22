@@ -742,7 +742,7 @@ export class StructParserPanel {
 
                 .tree-row {
                     display: grid;
-                    grid-template-columns: 1fr 80px 50px 50px 90px 70px;
+                    grid-template-columns: 1fr 120px 50px 50px 120px 100px;
                     column-gap: 16px;
                     align-items: center;
                     padding: 5px 24px;
@@ -822,6 +822,22 @@ export class StructParserPanel {
                     border-radius: 4px;
                     text-align: center;
                     white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    position: relative;
+                }
+
+                .tree-type:hover {
+                    white-space: normal;
+                    overflow: visible;
+                    z-index: 10;
+                    background: var(--vscode-editor-background) !important;
+                    border: 1px solid var(--vscode-editor-border);
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                    padding: 4px 10px;
+                    margin: -2px -10px;
+                    border-radius: 4px;
+                    max-width: 300px;
                 }
 
                 .tree-type.struct {
@@ -899,6 +915,23 @@ export class StructParserPanel {
                     text-align: right;
                     font-weight: 500;
                     white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    position: relative;
+                }
+
+                .tree-hex:hover {
+                    white-space: normal;
+                    overflow: visible;
+                    z-index: 10;
+                    background: var(--vscode-editor-background);
+                    border: 1px solid var(--vscode-editor-border);
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                    padding: 4px 10px;
+                    margin: -4px -10px;
+                    border-radius: 4px;
+                    max-width: 300px;
+                    text-align: left;
                 }
 
                 .tree-spacer-value {
@@ -946,13 +979,16 @@ export class StructParserPanel {
                 .tree-header .tree-type,
                 .tree-header .tree-offset,
                 .tree-header .tree-bits,
-                .tree-header .tree-spacer-value,
-                .tree-header .tree-spacer-hex {
+                .tree-header .tree-hex {
                     font-size: 11px;
                     font-weight: 600;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
                     color: var(--vscode-descriptionForeground);
+                }
+
+                .tree-header .tree-hex {
+                    text-align: right;
                 }
 
                 .tree-header .tree-type {
@@ -1057,8 +1093,8 @@ export class StructParserPanel {
                         <span class="tree-type">Type</span>
                         <span class="tree-offset">Offset</span>
                         <span class="tree-bits">Bits</span>
-                        <span class="tree-spacer-value">Value</span>
-                        <span class="tree-spacer-hex">Hex</span>
+                        <span class="tree-hex">Value</span>
+                        <span class="tree-hex">Hex</span>
                     </div>
 
                     <!-- Fields Tree -->
@@ -1247,11 +1283,6 @@ export class StructParserPanel {
                 function applyHideZero() {
                     const nodes = document.querySelectorAll('.tree-node[data-value]');
                     nodes.forEach(node => {
-                        const hasChildren = node.querySelector(':scope > .tree-children') !== null;
-                        if (hasChildren) {
-                            node.classList.remove('zero-hidden');
-                            return;
-                        }
                         const val = parseInt(node.getAttribute('data-value') || '0', 10);
                         if (hideZero && val === 0) {
                             node.classList.add('zero-hidden');
@@ -1320,8 +1351,8 @@ export class StructParserPanel {
                             \`;
                         } else {
                             html += \`
-                                    <span class="tree-spacer-value"></span>
-                                    <span class="tree-spacer-hex"></span>
+                                    <input type="text" class="tree-value" value="\${field.value}" data-path="\${pathJson}" data-bits="\${field.bits}" data-orig="\${field.value}" title="max: \${maxVal} (\${field.bits}bits)">
+                                    <span class="tree-hex">\${field.hex}</span>
                             \`;
                         }
 
