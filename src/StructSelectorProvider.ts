@@ -28,6 +28,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private _structData: StructJson | null = null;
     private _lastJsonPath: string | null = null;
+    private _currentJsonConfig: string | null = null;
     private _extensionUri: vscode.Uri;
     private _onStructSelected: vscode.EventEmitter<StructDef> = new vscode.EventEmitter<StructDef>();
     public get onStructSelected(): vscode.Event<StructDef> { return this._onStructSelected.event; }
@@ -38,7 +39,9 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
     constructor(extensionUri: vscode.Uri) {
         this._extensionUri = extensionUri;
-        this._loadStructData();
+        this._loadStructData().catch(err => {
+            vscode.window.showErrorMessage(`Failed to load struct data: ${err}`);
+        });
     }
 
     public resolveWebviewView(
@@ -67,7 +70,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     await this._handleImportJson();
                     break;
                 case 'refresh':
-                    this._loadStructData();
+                    await this._loadStructData();
                     this._updateWebview();
                     break;
                 case 'toggleHideZero':
@@ -80,9 +83,51 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         this._updateWebview();
     }
 
-    private _loadStructData() {
+    private async _loadStructData() {
         const config = vscode.workspace.getConfiguration('structParser');
-        const jsonPath = config.get<string>('jsonPath');
+        const jsonPaths = config.get<Array<{name: string, path: string}>>('jsonPaths') || [];
+        const legacyJsonPath = config.get<string>('jsonPath') || '';
+
+        // Handle legacy config
+        let jsonPath: string | null = null;
+        if (jsonPaths.length > 0) {
+            if (this._currentJsonConfig) {
+                // Use previously selected config
+                const selectedConfig = jsonPaths.find(c => c.name === this._currentJsonConfig);
+                if (selectedConfig) {
+                    jsonPath = selectedConfig.path;
+                }
+            }
+            
+            if (!jsonPath && jsonPaths.length === 1) {
+                // Only one config, use it
+                jsonPath = jsonPaths[0].path;
+                this._currentJsonConfig = jsonPaths[0].name;
+            }
+            
+            if (!jsonPath && jsonPaths.length > 1) {
+                // Multiple configs, let user choose
+                const items = jsonPaths.map(c => ({
+                    label: c.name,
+                    description: c.path,
+                    path: c.path,
+                    name: c.name
+                }));
+                
+                const selected = await vscode.window.showQuickPick(items, {
+                    title: 'Select Struct JSON Configuration',
+                    placeHolder: 'Choose a JSON file to load'
+                });
+                
+                if (selected) {
+                    jsonPath = selected.path;
+                    this._currentJsonConfig = selected.name;
+                }
+            }
+        } else if (legacyJsonPath) {
+            // Use legacy config
+            jsonPath = legacyJsonPath;
+        }
 
         // 如果配置路径没有变化，且已经有数据，直接返回，避免重复加载
         if (jsonPath === this._lastJsonPath && this._structData) {
@@ -128,7 +173,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         if (!searchTerm.trim()) {
             this._view.webview.postMessage({
                 command: 'searchResults',
-                results: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some(u => u.type === s.type) ?? false }))
+                results: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some((u: StructDef) => u.type === s.type) ?? false }))
             });
             return;
         }
@@ -140,7 +185,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
         this._view.webview.postMessage({
             command: 'searchResults',
-            results: filtered.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some(u => u.type === s.type) ?? false }))
+            results: filtered.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some((u: StructDef) => u.type === s.type) ?? false }))
         });
     }
 
@@ -184,6 +229,165 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    private async _handleConfig() {
+        const config = vscode.workspace.getConfiguration('structParser');
+        const jsonPaths = config.get<Array<{name: string, path: string}>>('jsonPaths') || [];
+        
+        const action = await vscode.window.showQuickPick([
+            { label: 'Add JSON Configuration', description: 'Add a new JSON file to the list' },
+            { label: 'Edit JSON Configuration', description: 'Modify existing configurations' },
+            { label: 'Remove JSON Configuration', description: 'Remove a configuration from the list' },
+            { label: 'Clear All Configurations', description: 'Remove all configurations' },
+            { label: 'Cancel', description: 'Exit without making changes' }
+        ], {
+            title: 'Struct Parser Configuration',
+            placeHolder: 'Choose an action'
+        });
+        
+        if (!action || action.label === 'Cancel') {
+            return;
+        }
+        
+        switch (action.label) {
+            case 'Add JSON Configuration': {
+                const name = await vscode.window.showInputBox({
+                    title: 'Add JSON Configuration',
+                    placeHolder: 'Enter a name for this configuration',
+                    prompt: 'This will help you identify the JSON file later'
+                });
+                
+                if (!name) return;
+                
+                const result = await vscode.window.showOpenDialog({
+                    canSelectFiles: true,
+                    canSelectFolders: false,
+                    canSelectMany: false,
+                    filters: {
+                        'JSON files': ['json'],
+                        'All files': ['*']
+                    },
+                    title: 'Select JSON File'
+                });
+                
+                if (result && result[0]) {
+                    const newConfig = [...jsonPaths, { name, path: result[0].fsPath }];
+                    await config.update('jsonPaths', newConfig, true);
+                    vscode.window.showInformationMessage(`Added configuration: ${name}`);
+                    await this._loadStructData();
+                    this._updateWebview();
+                }
+                break;
+            }
+            
+            case 'Edit JSON Configuration': {
+                if (jsonPaths.length === 0) {
+                    vscode.window.showInformationMessage('No configurations to edit');
+                    return;
+                }
+                
+                const selected = await vscode.window.showQuickPick(jsonPaths.map(c => ({
+                    label: c.name,
+                    description: c.path,
+                    config: c
+                })), {
+                    title: 'Edit JSON Configuration',
+                    placeHolder: 'Select a configuration to edit'
+                });
+                
+                if (!selected) return;
+                
+                const newName = await vscode.window.showInputBox({
+                    title: 'Edit Configuration Name',
+                    placeHolder: 'Enter a new name for this configuration',
+                    value: selected.config.name
+                });
+                
+                if (newName === undefined) return;
+                
+                const result = await vscode.window.showOpenDialog({
+                    canSelectFiles: true,
+                    canSelectFolders: false,
+                    canSelectMany: false,
+                    filters: {
+                        'JSON files': ['json'],
+                        'All files': ['*']
+                    },
+                    title: 'Select New JSON File',
+                    defaultUri: vscode.Uri.file(selected.config.path)
+                });
+                
+                if (result && result[0]) {
+                    const updatedConfigs = jsonPaths.map(c => 
+                        c.name === selected.config.name 
+                            ? { name: newName || selected.config.name, path: result[0].fsPath }
+                            : c
+                    );
+                    await config.update('jsonPaths', updatedConfigs, true);
+                    vscode.window.showInformationMessage(`Updated configuration: ${newName || selected.config.name}`);
+                    await this._loadStructData();
+                    this._updateWebview();
+                }
+                break;
+            }
+            
+            case 'Remove JSON Configuration': {
+                if (jsonPaths.length === 0) {
+                    vscode.window.showInformationMessage('No configurations to remove');
+                    return;
+                }
+                
+                const selected = await vscode.window.showQuickPick(jsonPaths.map(c => ({
+                    label: c.name,
+                    description: c.path,
+                    name: c.name
+                })), {
+                    title: 'Remove JSON Configuration',
+                    placeHolder: 'Select a configuration to remove'
+                });
+                
+                if (!selected) return;
+                
+                const confirmed = await vscode.window.showInformationMessage(
+                    `Are you sure you want to remove the configuration "${selected.name}"?`,
+                    { modal: true },
+                    'Yes',
+                    'No'
+                );
+                
+                if (confirmed === 'Yes') {
+                    const updatedConfigs = jsonPaths.filter(c => c.name !== selected.name);
+                    await config.update('jsonPaths', updatedConfigs, true);
+                    vscode.window.showInformationMessage(`Removed configuration: ${selected.name}`);
+                    await this._loadStructData();
+                    this._updateWebview();
+                }
+                break;
+            }
+            
+            case 'Clear All Configurations': {
+                if (jsonPaths.length === 0) {
+                    vscode.window.showInformationMessage('No configurations to clear');
+                    return;
+                }
+                
+                const confirmed = await vscode.window.showInformationMessage(
+                    'Are you sure you want to clear all JSON configurations?',
+                    { modal: true },
+                    'Yes',
+                    'No'
+                );
+                
+                if (confirmed === 'Yes') {
+                    await config.update('jsonPaths', [], true);
+                    vscode.window.showInformationMessage('All configurations cleared');
+                    await this._loadStructData();
+                    this._updateWebview();
+                }
+                break;
+            }
+        }
+    }
+
     private _getAllStructs(): StructDef[] {
         if (!this._structData) return [];
         const all = [...this._structData.structs, ...this._structData.unions];
@@ -201,13 +405,13 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         const allStructs = this._getAllStructs();
         this._view.webview.postMessage({
             command: 'updateData',
-            structs: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some(u => u.type === s.type) ?? false })),
+            structs: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some((u: StructDef) => u.type === s.type) ?? false })),
             hasData: allStructs.length > 0
         });
     }
 
-    public refresh() {
-        this._loadStructData();
+    public async refresh() {
+        await this._loadStructData();
         this._updateWebview();
     }
 
@@ -216,7 +420,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             name: s.type,
             structKind: s.type,
             bits: s.bits,
-            isUnion: this._structData?.unions?.some(u => u.type === s.type) ?? false
+            isUnion: this._structData?.unions?.some((u: StructDef) => u.type === s.type) ?? false
         }));
 
         return `<!DOCTYPE html>

@@ -94,7 +94,26 @@
         "structParser.jsonPath": {
           "type": "string",
           "default": "",
-          "description": "Path to the struct parser JSON output file"
+          "description": "Path to the struct parser JSON output file (deprecated, use jsonPaths instead)"
+        },
+        "structParser.jsonPaths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the JSON configuration"
+              },
+              "path": {
+                "type": "string",
+                "description": "Path to the JSON file"
+              }
+            },
+            "required": ["name", "path"]
+          },
+          "default": [],
+          "description": "List of JSON files for struct parsing"
         },
         "structParser.history": {
           "type": "array",
