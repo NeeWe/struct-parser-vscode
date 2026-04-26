@@ -79,20 +79,14 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 case 'selectStruct':
                     this._handleSelectStruct(message.structName);
                     break;
-                case 'importJson':
-                    await this._handleImportJson();
-                    break;
-                case 'config':
-                    await this._handleConfig();
-                    break;
-                case 'selectConfig':
-                    await this._handleSelectConfig(message.configName);
+                case 'showImportMenu':
+                    await this._handleShowImportMenu();
                     break;
                 case 'selectStructSet':
                     await this._handleSelectStructSet(message.setName);
                     break;
-                case 'deleteStructSet':
-                    await this._handleDeleteStructSet(message.setName);
+                case 'clearCache':
+                    await this._handleClearCache();
                     break;
                 case 'refresh':
                     await this._loadStructData();
@@ -268,10 +262,6 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     saveStructSet(this._context, setName, data, result[0].fsPath);
                     setActiveStructSet(this._context, setName);
                     vscode.window.showInformationMessage(`Saved struct set "${setName}" with ${this._getAllStructs().length} structs`);
-                } else {
-                    // Still update legacy config even if not cached
-                    const config = vscode.workspace.getConfiguration('structParser');
-                    await config.update('jsonPath', result[0].fsPath, true);
                 }
                 
                 this._onStructSetChanged.fire();
@@ -279,6 +269,46 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             } catch (error) {
                 vscode.window.showErrorMessage(`Failed to load JSON: ${error}`);
             }
+        }
+    }
+
+    private async _handleShowImportMenu() {
+        const choice = await vscode.window.showQuickPick([
+            { label: '$(file-code) Import from JSON file', description: 'Load a previously exported struct JSON file', value: 'json' },
+            { label: '$(terminal) Parse from command.txt', description: 'Parse C structs from a command.txt file', value: 'command' }
+        ], {
+            title: 'Import Struct Data',
+            placeHolder: 'Choose an import source'
+        });
+
+        if (!choice) return;
+
+        if (choice.value === 'json') {
+            await this._handleImportJson();
+        } else if (choice.value === 'command') {
+            await vscode.commands.executeCommand('structParser.parseFromCommandTxt');
+        }
+    }
+
+    private async _handleClearCache() {
+        const sets = getStructSets(this._context);
+        if (sets.length === 0) {
+            vscode.window.showInformationMessage('No cached struct sets to clear');
+            return;
+        }
+        const confirmed = await vscode.window.showInformationMessage(
+            `Clear all ${sets.length} cached struct sets?`,
+            { modal: true },
+            'Yes',
+            'No'
+        );
+        if (confirmed === 'Yes') {
+            await this._context.globalState.update('structParser.structSets', undefined);
+            await this._context.globalState.update('structParser.activeStructSet', undefined);
+            this._structData = null;
+            this._onStructSetChanged.fire();
+            this._updateWebview();
+            vscode.window.showInformationMessage('All cached struct sets cleared');
         }
     }
 
@@ -867,7 +897,6 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             <div class="sidebar">
                 <div class="sidebar-header">
                     <span class="sidebar-title">Struct Parser</span>
-                    ${this._currentJsonConfig ? `<span class="current-config">${this._currentJsonConfig}</span>` : ''}
                 </div>
 
                 <div class="sidebar-search">
@@ -884,25 +913,16 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     <button class="toolbar-btn active" id="bitvisBtn" title="Toggle bit visualization">
                         <span>📊</span> BitView
                     </button>
-                    <button class="toolbar-btn" id="importJsonBtn" title="Import struct JSON file">
+                    <button class="toolbar-btn" id="importBtn" title="Import struct data">
                         <span>📥</span> Import
                     </button>
-                    <button class="toolbar-btn" id="configBtn" title="Manage JSON configurations">
-                        <span>⚙</span>
-                    </button>
-                    <select class="config-select" id="configSelect" title="Switch between configured JSON files">
-                        <option value="">Config...</option>
-                        ${this._getJsonConfigs().map(config => `
-                            <option value="${config.name}" ${this._currentJsonConfig === config.name ? 'selected' : ''}>${config.name}</option>
-                        `).join('')}
-                    </select>
-                    <select class="config-select" id="structSetSelect" title="Switch between cached struct sets">
-                        <option value="">Cache...</option>
+                    <select class="config-select" id="structSetSelect" title="Switch between cached struct sets" style="max-width: 160px;">
+                        <option value="">Select set...</option>
                         ${getStructSets(this._context).map(set => `
                             <option value="${set.name}" ${getActiveStructSetName(this._context) === set.name ? 'selected' : ''}>${set.name}</option>
                         `).join('')}
                     </select>
-                    <button class="toolbar-btn" id="deleteSetBtn" title="Delete selected cached struct set" style="flex:0;padding:4px 8px;">
+                    <button class="toolbar-btn" id="clearCacheBtn" title="Clear all cached struct sets" style="flex:0; padding: 4px 8px;">
                         <span>🗑</span>
                     </button>
                 </div>
@@ -963,20 +983,8 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     vscode.postMessage({ command: 'toggleHideZero', hideZero });
                 });
 
-                document.getElementById('importJsonBtn').addEventListener('click', () => {
-                    vscode.postMessage({ command: 'importJson' });
-                });
-
-                document.getElementById('configBtn').addEventListener('click', () => {
-                    vscode.postMessage({ command: 'config' });
-                });
-
-                document.getElementById('configSelect').addEventListener('change', (e) => {
-                    const select = e.target;
-                    const configName = select.value;
-                    if (configName) {
-                        vscode.postMessage({ command: 'selectConfig', configName });
-                    }
+                document.getElementById('importBtn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'showImportMenu' });
                 });
 
                 document.getElementById('structSetSelect').addEventListener('change', (e) => {
@@ -987,14 +995,8 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     }
                 });
 
-                document.getElementById('deleteSetBtn').addEventListener('click', () => {
-                    const select = document.getElementById('structSetSelect');
-                    const setName = select.value;
-                    if (setName) {
-                        vscode.postMessage({ command: 'deleteStructSet', setName });
-                    } else {
-                        vscode.postMessage({ command: 'alert', text: 'Please select a cached struct set to delete' });
-                    }
+                document.getElementById('clearCacheBtn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'clearCache' });
                 });
 
                 document.getElementById('structList').addEventListener('click', (e) => {
@@ -1027,7 +1029,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                             const setSelect = document.getElementById('structSetSelect');
                             if (setSelect && message.structSets) {
                                 const currentValue = setSelect.value;
-                                let html = '<option value="">Cache...</option>';
+                                let html = '<option value="">Select set...</option>';
                                 message.structSets.forEach(set => {
                                     const selected = set.name === message.activeSetName ? 'selected' : '';
                                     html += \`<option value="\${set.name}" \${selected}>\${set.name}</option>\`;
