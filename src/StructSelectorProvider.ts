@@ -1028,15 +1028,15 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                             // Update struct set selector
                             const setSelect = document.getElementById('structSetSelect');
                             if (setSelect && message.structSets) {
-                                const currentValue = setSelect.value;
                                 let html = '<option value="">Select set...</option>';
                                 message.structSets.forEach(set => {
                                     const selected = set.name === message.activeSetName ? 'selected' : '';
                                     html += \`<option value="\${set.name}" \${selected}>\${set.name}</option>\`;
                                 });
                                 setSelect.innerHTML = html;
-                                if (currentValue && message.structSets.some(s => s.name === currentValue)) {
-                                    setSelect.value = currentValue;
+                                // Always sync to the active set name from backend
+                                if (message.activeSetName) {
+                                    setSelect.value = message.activeSetName;
                                 }
                             }
                             break;

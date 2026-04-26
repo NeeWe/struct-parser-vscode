@@ -73,13 +73,7 @@
           "group": "9_cutcopypaste@5"
         }
       ],
-      "view/title": [
-        {
-          "command": "structParser.parseFromCommandTxt",
-          "when": "view == structSelector",
-          "group": "navigation@1"
-        }
-      ]
+      "view/title": []
     },
     "viewsContainers": {
       "activitybar": [
