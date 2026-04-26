@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getActiveStructData } from './dataManager';
 
 interface StructField {
     name: string;
@@ -34,6 +35,7 @@ interface ParsedField extends StructField {
 export class StructParserPanel {
     public static panels: Map<string, StructParserPanel> = new Map();
     public static readonly viewType = 'structParser';
+    public static context: vscode.ExtensionContext | undefined;
 
     private readonly _panel: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
@@ -108,6 +110,16 @@ export class StructParserPanel {
     }
 
     private _loadStructData() {
+        // 1. Try cached struct sets first (globalState)
+        if (StructParserPanel.context) {
+            const cachedData = getActiveStructData(StructParserPanel.context);
+            if (cachedData) {
+                this._structData = cachedData;
+                return;
+            }
+        }
+
+        // 2. Fall back to workspace configuration
         const config = vscode.workspace.getConfiguration('structParser');
         const jsonPath = config.get<string>('jsonPath');
 
@@ -366,6 +378,25 @@ export class StructParserPanel {
 
     public refreshStructList(structData: StructJson) {
         this._structData = structData;
+    }
+
+    public refreshStructData() {
+        this._loadStructData();
+        // If we have a current struct, try to re-show it with new data
+        if (this._currentStruct) {
+            const structName = this._currentStruct.type;
+            const refreshed = this._findStructDef(structName);
+            if (refreshed) {
+                this._currentStruct = refreshed;
+                if (this._currentParsedData) {
+                    this._parseHexValue(this._currentParsedData.hexValue, structName);
+                } else {
+                    this._update();
+                }
+            }
+        } else {
+            this._update();
+        }
     }
 
     public setHideZero(hideZero: boolean) {

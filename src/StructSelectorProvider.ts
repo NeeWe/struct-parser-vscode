@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getStructSets, saveStructSet, deleteStructSet, getActiveStructSetName, setActiveStructSet, getActiveStructData } from './dataManager';
 
 interface StructField {
     name: string;
@@ -40,8 +41,14 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     private _onBitVisChanged: vscode.EventEmitter<boolean> = new vscode.EventEmitter<boolean>();
     public get onBitVisChanged(): vscode.Event<boolean> { return this._onBitVisChanged.event; }
 
-    constructor(extensionUri: vscode.Uri) {
+    private _onStructSetChanged: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
+    public get onStructSetChanged(): vscode.Event<void> { return this._onStructSetChanged.event; }
+
+    private _context: vscode.ExtensionContext;
+
+    constructor(extensionUri: vscode.Uri, context: vscode.ExtensionContext) {
         this._extensionUri = extensionUri;
+        this._context = context;
         this._loadStructData().catch(err => {
             vscode.window.showErrorMessage(`Failed to load struct data: ${err}`);
         });
@@ -81,6 +88,12 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 case 'selectConfig':
                     await this._handleSelectConfig(message.configName);
                     break;
+                case 'selectStructSet':
+                    await this._handleSelectStructSet(message.setName);
+                    break;
+                case 'deleteStructSet':
+                    await this._handleDeleteStructSet(message.setName);
+                    break;
                 case 'refresh':
                     await this._loadStructData();
                     this._updateWebview();
@@ -99,6 +112,14 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     }
 
     private async _loadStructData() {
+        // 1. Try cached struct sets first (globalState)
+        const cachedData = getActiveStructData(this._context);
+        if (cachedData) {
+            this._structData = cachedData;
+            return;
+        }
+
+        // 2. Fall back to workspace configuration
         const config = vscode.workspace.getConfiguration('structParser');
         const jsonPaths = config.get<Array<{name: string, path: string}>>('jsonPaths') || [];
         const legacyJsonPath = config.get<string>('jsonPath') || '';
@@ -230,13 +251,30 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         if (result && result[0]) {
             try {
                 const content = fs.readFileSync(result[0].fsPath, 'utf-8');
-                this._structData = JSON.parse(content);
+                const data = JSON.parse(content);
+                this._structData = data;
                 this._lastJsonPath = result[0].fsPath;
                 
-                const config = vscode.workspace.getConfiguration('structParser');
-                await config.update('jsonPath', result[0].fsPath, true);
+                // Prompt for a name to save to cache
+                const defaultName = path.basename(result[0].fsPath, '.json');
+                const setName = await vscode.window.showInputBox({
+                    title: 'Save Struct Set',
+                    placeHolder: 'Enter a name for this struct set',
+                    value: defaultName,
+                    prompt: 'This name will be used to identify the struct set in the cache'
+                });
                 
-                vscode.window.showInformationMessage(`Loaded ${this._getAllStructs().length} structs`);
+                if (setName) {
+                    saveStructSet(this._context, setName, data, result[0].fsPath);
+                    setActiveStructSet(this._context, setName);
+                    vscode.window.showInformationMessage(`Saved struct set "${setName}" with ${this._getAllStructs().length} structs`);
+                } else {
+                    // Still update legacy config even if not cached
+                    const config = vscode.workspace.getConfiguration('structParser');
+                    await config.update('jsonPath', result[0].fsPath, true);
+                }
+                
+                this._onStructSetChanged.fire();
                 this._updateWebview();
             } catch (error) {
                 vscode.window.showErrorMessage(`Failed to load JSON: ${error}`);
@@ -415,6 +453,36 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    private async _handleSelectStructSet(setName: string) {
+        const sets = getStructSets(this._context);
+        const selected = sets.find(s => s.name === setName);
+        if (selected) {
+            this._structData = selected.data;
+            setActiveStructSet(this._context, setName);
+            this._onStructSetChanged.fire();
+            this._updateWebview();
+        }
+    }
+
+    private async _handleDeleteStructSet(setName: string) {
+        const confirmed = await vscode.window.showInformationMessage(
+            `Delete cached struct set "${setName}"?`,
+            { modal: true },
+            'Yes',
+            'No'
+        );
+        if (confirmed === 'Yes') {
+            deleteStructSet(this._context, setName);
+            // If we deleted the active set, reload
+            const activeName = getActiveStructSetName(this._context);
+            if (!activeName) {
+                this._structData = null;
+            }
+            this._onStructSetChanged.fire();
+            this._updateWebview();
+        }
+    }
+
     private _getAllStructs(): StructDef[] {
         if (!this._structData) return [];
         const all = [...this._structData.structs, ...this._structData.unions];
@@ -435,10 +503,14 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         if (!this._view) return;
 
         const allStructs = this._getAllStructs();
+        const structSets = getStructSets(this._context);
+        const activeSetName = getActiveStructSetName(this._context);
         this._view.webview.postMessage({
             command: 'updateData',
             structs: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some((u: StructDef) => u.type === s.type) ?? false })),
-            hasData: allStructs.length > 0
+            hasData: allStructs.length > 0,
+            structSets: structSets.map(s => ({ name: s.name, importedAt: s.importedAt })),
+            activeSetName: activeSetName || ''
         });
     }
 
@@ -824,6 +896,15 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                             <option value="${config.name}" ${this._currentJsonConfig === config.name ? 'selected' : ''}>${config.name}</option>
                         `).join('')}
                     </select>
+                    <select class="config-select" id="structSetSelect" title="Switch between cached struct sets">
+                        <option value="">Cache...</option>
+                        ${getStructSets(this._context).map(set => `
+                            <option value="${set.name}" ${getActiveStructSetName(this._context) === set.name ? 'selected' : ''}>${set.name}</option>
+                        `).join('')}
+                    </select>
+                    <button class="toolbar-btn" id="deleteSetBtn" title="Delete selected cached struct set" style="flex:0;padding:4px 8px;">
+                        <span>🗑</span>
+                    </button>
                 </div>
 
                 <div class="struct-list" id="structList">
@@ -898,6 +979,24 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     }
                 });
 
+                document.getElementById('structSetSelect').addEventListener('change', (e) => {
+                    const select = e.target;
+                    const setName = select.value;
+                    if (setName) {
+                        vscode.postMessage({ command: 'selectStructSet', setName });
+                    }
+                });
+
+                document.getElementById('deleteSetBtn').addEventListener('click', () => {
+                    const select = document.getElementById('structSetSelect');
+                    const setName = select.value;
+                    if (setName) {
+                        vscode.postMessage({ command: 'deleteStructSet', setName });
+                    } else {
+                        vscode.postMessage({ command: 'alert', text: 'Please select a cached struct set to delete' });
+                    }
+                });
+
                 document.getElementById('structList').addEventListener('click', (e) => {
                     const item = e.target.closest('.struct-item');
                     if (item) {
@@ -924,6 +1023,20 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                             updateStructList(message.structs);
                             const countEl = document.getElementById('structCount');
                             if (countEl) countEl.textContent = message.structs.length;
+                            // Update struct set selector
+                            const setSelect = document.getElementById('structSetSelect');
+                            if (setSelect && message.structSets) {
+                                const currentValue = setSelect.value;
+                                let html = '<option value="">Cache...</option>';
+                                message.structSets.forEach(set => {
+                                    const selected = set.name === message.activeSetName ? 'selected' : '';
+                                    html += \`<option value="\${set.name}" \${selected}>\${set.name}</option>\`;
+                                });
+                                setSelect.innerHTML = html;
+                                if (currentValue && message.structSets.some(s => s.name === currentValue)) {
+                                    setSelect.value = currentValue;
+                                }
+                            }
                             break;
                     }
                 });

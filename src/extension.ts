@@ -7,8 +7,11 @@ import * as path from 'path';
 export function activate(context: vscode.ExtensionContext) {
     console.log('Struct Parser extension is now active');
 
+    // Share context with panel for globalState access
+    StructParserPanel.context = context;
+
     // Create and register the sidebar webview provider
-    const structSelectorProvider = new StructSelectorProvider(context.extensionUri);
+    const structSelectorProvider = new StructSelectorProvider(context.extensionUri, context);
     
     // Register the webview view
     const selectorView = vscode.window.registerWebviewViewProvider(
@@ -113,6 +116,15 @@ export function activate(context: vscode.ExtensionContext) {
         structSelectorProvider.onBitVisChanged((visible) => {
             StructParserPanel.panels.forEach(panel => {
                 panel.setBitVisVisible(visible);
+            });
+        })
+    );
+
+    // Refresh all panels when cached struct set changes
+    context.subscriptions.push(
+        structSelectorProvider.onStructSetChanged(() => {
+            StructParserPanel.panels.forEach(panel => {
+                panel.refreshStructData();
             });
         })
     );
