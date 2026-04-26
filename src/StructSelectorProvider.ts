@@ -891,6 +891,43 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 }
 
                 .struct-item { animation: fadeIn 0.2s ease; }
+
+                .pagination {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    padding: 6px 12px;
+                    border-top: 1px solid var(--vscode-panel-border);
+                    font-size: 11px;
+                    background: var(--vscode-sidebar-background);
+                }
+
+                .page-btn {
+                    background: transparent;
+                    border: 1px solid var(--vscode-panel-border);
+                    color: var(--vscode-foreground);
+                    padding: 2px 10px;
+                    border-radius: 3px;
+                    cursor: pointer;
+                    font-size: 11px;
+                    font-family: var(--vscode-font-family);
+                }
+
+                .page-btn:hover:not(:disabled) {
+                    background: var(--vscode-list-hoverBackground);
+                }
+
+                .page-btn:disabled {
+                    opacity: 0.35;
+                    cursor: not-allowed;
+                }
+
+                .page-info {
+                    color: var(--vscode-descriptionForeground);
+                    min-width: 60px;
+                    text-align: center;
+                }
             </style>
         </head>
         <body>
@@ -946,6 +983,12 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     `}
                 </div>
 
+                <div class="pagination" id="pagination">
+                    <button class="page-btn" id="prevPage">◀</button>
+                    <span class="page-info" id="pageInfo">1 / 1</span>
+                    <button class="page-btn" id="nextPage">▶</button>
+                </div>
+
                 <div class="sidebar-footer">
                     <span>Structs</span>
                     <span class="sidebar-count" id="structCount">${allStructs.length}</span>
@@ -958,6 +1001,9 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 let selectedStruct = null;
                 let hideZero = false;
                 let showBitVis = true;
+                const PAGE_SIZE = 100;
+                let currentPage = 1;
+                let currentDisplayStructs = [];
 
                 document.getElementById('bitvisBtn').addEventListener('click', () => {
                     showBitVis = !showBitVis;
@@ -997,6 +1043,21 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
                 document.getElementById('clearCacheBtn').addEventListener('click', () => {
                     vscode.postMessage({ command: 'clearCache' });
+                });
+
+                document.getElementById('prevPage').addEventListener('click', () => {
+                    if (currentPage > 1) {
+                        currentPage--;
+                        renderPage();
+                    }
+                });
+
+                document.getElementById('nextPage').addEventListener('click', () => {
+                    const totalPages = Math.ceil(currentDisplayStructs.length / PAGE_SIZE) || 1;
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        renderPage();
+                    }
                 });
 
                 document.getElementById('structList').addEventListener('click', (e) => {
@@ -1044,11 +1105,30 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 });
 
                 function updateStructList(structs) {
+                    currentDisplayStructs = structs;
+                    currentPage = 1;
+                    renderPage();
+                }
+
+                function renderPage() {
                     const list = document.getElementById('structList');
                     const countEl = document.getElementById('structCount');
+                    const pageInfo = document.getElementById('pageInfo');
+                    const prevBtn = document.getElementById('prevPage');
+                    const nextBtn = document.getElementById('nextPage');
                     if (!list) return;
 
-                    if (structs.length === 0) {
+                    const total = currentDisplayStructs.length;
+                    const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+                    const start = (currentPage - 1) * PAGE_SIZE;
+                    const end = Math.min(start + PAGE_SIZE, total);
+                    const pageData = currentDisplayStructs.slice(start, end);
+
+                    if (pageInfo) pageInfo.textContent = totalPages <= 1 ? '' : \`\${currentPage} / \${totalPages}\`;
+                    if (prevBtn) prevBtn.disabled = currentPage <= 1;
+                    if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+
+                    if (total === 0) {
                         list.innerHTML = \`
                             <div class="empty-state">
                                 <div class="empty-icon">🔍</div>
@@ -1060,7 +1140,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                         return;
                     }
 
-                    list.innerHTML = structs.map(s => \`
+                    list.innerHTML = pageData.map(s => \`
                         <div class="struct-item \${selectedStruct === s.structKind ? 'selected' : ''}" data-name="\${s.structKind.replace(/"/g, '&quot;')}" data-is-union="\${s.isUnion}">
                             <span class="struct-dot \${s.isUnion ? 'union' : 'struct'}"></span>
                             <div class="struct-item-content">
@@ -1070,7 +1150,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                             <span class="struct-item-badge \${s.isUnion ? 'union' : 'struct'}">\${s.isUnion ? 'union' : 'struct'}</span>
                         </div>
                     \`).join('');
-                    if (countEl) countEl.textContent = structs.length;
+                    if (countEl) countEl.textContent = total;
                 }
             </script>
         </body>
