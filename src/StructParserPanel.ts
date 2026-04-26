@@ -779,20 +779,9 @@ export class StructParserPanel {
                     border: none;
                 }
 
-                /* Lane container for independent union member rows */
-                .bitvis-lane {
-                    position: relative;
-                    flex: 1;
-                    min-height: 0;
-                }
-
-                .bitvis-lane.union-lane {
-                    border-top: 1px dashed var(--vscode-panel-border);
-                }
-
                 .bitvis-field-block.union-variant {
                     opacity: 0.75;
-                    border: 1px dashed rgba(255,255,255,0.25);
+                    border-top: 1px dashed rgba(255,255,255,0.25);
                 }
 
                 .bitvis-field-block.union-variant:hover {
@@ -1699,27 +1688,32 @@ export class StructParserPanel {
                 }
                 
                 // Collect field lanes: overlapping siblings (union members) are assigned to
-                // separate lanes. Each lane is rendered as an independent horizontal sub-row
-                // with its own block-splitting logic, so union members never affect each other.
+                // separate lanes with independent block-splitting. Each field carries
+                // memberIndex/memberCount so the renderer can position it vertically:
+                //   - Non-union fields: memberCount=1 → span full row height
+                //   - Union member k of M: top=k/M, height=1/M of row height
                 function collectLanes(fields) {
                     const lanes = [[]];
                     function ensureLane(idx) {
                         while (lanes.length <= idx) lanes.push([]);
                     }
-                    function walkGroup(fieldList, baseLane) {
+                    function makeField(f, mi, mc) {
+                        return { name: f.name, type: f.type, bits: f.bits, offset: f.offset, memberIndex: mi, memberCount: mc };
+                    }
+                    function walkGroup(fieldList, baseLane, inheritedMi, inheritedMc) {
                         const overlapGroups = groupByOverlap(fieldList);
                         overlapGroups.forEach(group => {
                             if (group.length === 1) {
                                 const f = group[0];
                                 if (f.type === 'struct' || f.type === 'union') {
                                     ensureLane(baseLane);
-                                    lanes[baseLane].push({ name: f.name, type: f.type, bits: f.bits, offset: f.offset });
-                                    if (f.fields && f.fields.length > 0) walkGroup(f.fields, baseLane);
+                                    lanes[baseLane].push(makeField(f, inheritedMi, inheritedMc));
+                                    if (f.fields && f.fields.length > 0) walkGroup(f.fields, baseLane, inheritedMi, inheritedMc);
                                 } else if (f.fields && f.fields.length > 0) {
-                                    walkGroup(f.fields, baseLane);
+                                    walkGroup(f.fields, baseLane, inheritedMi, inheritedMc);
                                 } else {
                                     ensureLane(baseLane);
-                                    lanes[baseLane].push({ name: f.name, type: f.type, bits: f.bits, offset: f.offset });
+                                    lanes[baseLane].push(makeField(f, inheritedMi, inheritedMc));
                                 }
                             } else {
                                 // Union members: Nth member → lane (baseLane + N)
@@ -1727,18 +1721,18 @@ export class StructParserPanel {
                                     const targetLane = baseLane + fi;
                                     ensureLane(targetLane);
                                     if (f.type === 'struct' || f.type === 'union') {
-                                        lanes[targetLane].push({ name: f.name, type: f.type, bits: f.bits, offset: f.offset });
-                                        if (f.fields && f.fields.length > 0) walkGroup(f.fields, targetLane);
+                                        lanes[targetLane].push(makeField(f, fi, group.length));
+                                        if (f.fields && f.fields.length > 0) walkGroup(f.fields, targetLane, fi, group.length);
                                     } else if (f.fields && f.fields.length > 0) {
-                                        walkGroup(f.fields, targetLane);
+                                        walkGroup(f.fields, targetLane, fi, group.length);
                                     } else {
-                                        lanes[targetLane].push({ name: f.name, type: f.type, bits: f.bits, offset: f.offset });
+                                        lanes[targetLane].push(makeField(f, fi, group.length));
                                     }
                                 });
                             }
                         });
                     }
-                    walkGroup(fields, 0);
+                    walkGroup(fields, 0, 0, 1);
                     return lanes.filter(l => l.length > 0);
                 }
                 
@@ -1873,11 +1867,20 @@ export class StructParserPanel {
                 
                         if (activeLanes.length === 0) continue;
                 
-                        const hasMultipleLanes = activeLanes.length > 1;
+                        // Row height = max(memberCount) across all blocks in this row
+                        let maxMemberCount = 1;
+                        activeLanes.forEach(({ blocks, laneIdx }) => {
+                            blocks.forEach(block => {
+                                const fi = block.fieldIndices[0];
+                                const f = fieldLanes[laneIdx][fi];
+                                if (f.memberCount > maxMemberCount) maxMemberCount = f.memberCount;
+                            });
+                        });
+                        const hasUnion = maxMemberCount > 1;
                 
                         const row = document.createElement('div');
-                        row.className = 'bitvis-row' + (hasMultipleLanes ? ' has-union' : '');
-                        row.style.height = (activeLanes.length * LANE_HEIGHT) + 'px';
+                        row.className = 'bitvis-row' + (hasUnion ? ' has-union' : '');
+                        row.style.height = (maxMemberCount * LANE_HEIGHT) + 'px';
                         row.dataset.rowStart = rowStart;
                         row.dataset.rowEnd = rowEnd;
                 
@@ -1889,14 +1892,13 @@ export class StructParserPanel {
                         const body = document.createElement('div');
                         body.className = 'bitvis-row-body';
                 
-                        // Render each active lane as an independent sub-row
-                        activeLanes.forEach(({ blocks, laneIdx }, activeLanePos) => {
-                            const laneEl = document.createElement('div');
-                            laneEl.className = 'bitvis-lane' + (activeLanePos > 0 ? ' union-lane' : '');
+                        const fieldArea = document.createElement('div');
+                        fieldArea.className = 'bitvis-field-area';
                 
-                            const fieldArea = document.createElement('div');
-                            fieldArea.className = 'bitvis-field-area';
-                
+                        // Render blocks from all lanes into a single fieldArea.
+                        // Each block is absolutely positioned both horizontally (bit position)
+                        // and vertically (memberIndex/memberCount).
+                        activeLanes.forEach(({ blocks, laneIdx }) => {
                             blocks.forEach(block => {
                                 const leftPct = (block.start / ROW_BITS) * 100;
                                 const widthPct = ((block.end - block.start) / ROW_BITS) * 100;
@@ -1905,16 +1907,21 @@ export class StructParserPanel {
                                 const f = fieldLanes[laneIdx][fi];
                                 const color = getFieldColor(f.type, f.name.hashCode());
                 
+                                const mi = f.memberIndex;
+                                const mc = f.memberCount;
+                                const topPct = (mi / mc) * 100;
+                                const heightPct = (1 / mc) * 100;
+                
                                 const vInfo = valueByPath[f.name] || {};
                                 const vStr = vInfo.value !== undefined ? ', value=' + vInfo.value + ' (' + (vInfo.hex||'') + ')' : '';
                 
                                 const bEl = document.createElement('div');
-                                bEl.className = 'bitvis-field-block' + (activeLanePos > 0 ? ' union-variant' : '');
+                                bEl.className = 'bitvis-field-block' + (mc > 1 && mi > 0 ? ' union-variant' : '');
                                 bEl.style.left = leftPct + '%';
                                 bEl.style.width = widthPct + '%';
+                                bEl.style.top = topPct + '%';
+                                bEl.style.height = heightPct + '%';
                                 bEl.style.background = 'linear-gradient(135deg, ' + color + ', ' + color + 'cc)';
-                                bEl.style.height = '100%';
-                                bEl.style.top = '0';
                                 bEl.title = f.name + ' (' + f.type + ', ' + f.bits + ' bits @ ' + f.offset + vStr + ')';
                                 bEl.dataset.fieldName = f.name;
                 
@@ -1940,12 +1947,11 @@ export class StructParserPanel {
                                 bEl.addEventListener('click', () => scrollToField(f.name));
                                 fieldArea.appendChild(bEl);
                             });
-                
-                            laneEl.appendChild(fieldArea);
-                            body.appendChild(laneEl);
                         });
                 
-                        if (hasMultipleLanes) {
+                        body.appendChild(fieldArea);
+                
+                        if (hasUnion) {
                             const unLabel = document.createElement('div');
                             unLabel.className = 'bitvis-union-indicator';
                             unLabel.textContent = 'U';
