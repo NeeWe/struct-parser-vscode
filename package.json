@@ -37,26 +37,9 @@
         "icon": "$(preview)"
       },
       {
-        "command": "structParser.openViewerWithStruct",
-        "title": "Open with Struct",
-        "category": "Struct Parser"
-      },
-      {
         "command": "structParser.parseFromHex",
         "title": "Parse Hex Value",
         "category": "Struct Parser"
-      },
-      {
-        "command": "structParser.importJson",
-        "title": "Import JSON File",
-        "category": "Struct Parser",
-        "icon": "$(file-add)"
-      },
-      {
-        "command": "structParser.refresh",
-        "title": "Refresh",
-        "category": "Struct Parser",
-        "icon": "$(refresh)"
       },
       {
         "command": "structParser.parseFromCommandTxt",

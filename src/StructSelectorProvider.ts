@@ -172,26 +172,6 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             } catch (error) {
                 vscode.window.showErrorMessage(`Failed to load struct JSON: ${error}`);
             }
-        } else {
-            const workspaceFolders = vscode.workspace.workspaceFolders;
-            if (workspaceFolders) {
-                const possiblePaths = [
-                    path.join(workspaceFolders[0].uri.fsPath, 'output.json'),
-                    path.join(workspaceFolders[0].uri.fsPath, 'structs.json'),
-                ];
-
-                for (const tryPath of possiblePaths) {
-                    if (fs.existsSync(tryPath)) {
-                        try {
-                            const content = fs.readFileSync(tryPath, 'utf-8');
-                            this._structData = JSON.parse(content);
-                            this._lastJsonPath = tryPath;
-                            break;
-                        } catch (error) {
-                        }
-                    }
-                }
-            }
         }
     }
 
