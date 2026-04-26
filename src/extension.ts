@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { StructParserPanel } from './StructParserPanel';
 import { StructSelectorProvider } from './StructSelectorProvider';
+import { StructParserService } from './parser/service';
+import * as path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Struct Parser extension is now active');
@@ -20,6 +22,53 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Register command to parse selected hex value
+    
+    // Register command to parse from command.txt
+    const parseFromCommandTxtCommand = vscode.commands.registerCommand('structParser.parseFromCommandTxt', async () => {
+        const commandUri = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            filters: { 'Command files': ['txt'], 'All files': ['*'] },
+            title: 'Select command.txt file'
+        });
+
+        if (!commandUri || commandUri.length === 0) {
+            return;
+        }
+
+        const commandFile = commandUri[0].fsPath;
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        const outputDir = workspaceFolders ? workspaceFolders[0].uri.fsPath : path.dirname(commandFile);
+        const outputFile = path.join(outputDir, 'structs_output.json');
+
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: 'Parsing structs from command.txt...',
+            cancellable: false
+        }, async (progress) => {
+            try {
+                const service = new StructParserService();
+                const result = await service.parseFromCommandTxt(commandFile, outputFile);
+
+                if (result.success) {
+                    const totalTypes = result.structs.length + result.unions.length;
+                    vscode.window.showInformationMessage(
+                        'Parsed ' + totalTypes + ' types (' + result.structs.length + ' structs, ' + result.unions.length + ' unions)'
+                    );
+                    await structSelectorProvider.loadFromPath(outputFile);
+                } else {
+                    vscode.window.showErrorMessage(
+                        'Parse failed: ' + result.errors.slice(0, 3).join('; ')
+                    );
+                }
+            } catch (error) {
+                vscode.window.showErrorMessage(
+                    'Error: ' + (error instanceof Error ? error.message : String(error))
+                );
+            }
+        });
+    });
     const parseFromHexCommand = vscode.commands.registerCommand('structParser.parseFromHex', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
@@ -69,8 +118,9 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
-        openViewerCommand, 
-        parseFromHexCommand, 
+        openViewerCommand,
+        parseFromCommandTxtCommand,
+        parseFromHexCommand,
         selectorView
     );
 }

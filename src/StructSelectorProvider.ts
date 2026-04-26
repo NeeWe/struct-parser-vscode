@@ -442,6 +442,17 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         });
     }
 
+
+    public async loadFromPath(jsonPath: string) {
+        try {
+            const content = fs.readFileSync(jsonPath, 'utf-8');
+            this._structData = JSON.parse(content);
+            this._lastJsonPath = jsonPath;
+            this._updateWebview();
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to load JSON: ${error}`);
+        }
+    }
     public async refresh() {
         await this._loadStructData();
         this._updateWebview();
