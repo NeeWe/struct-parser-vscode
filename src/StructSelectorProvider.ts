@@ -38,8 +38,10 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     private _onHideZeroChanged: vscode.EventEmitter<boolean> = new vscode.EventEmitter<boolean>();
     public get onHideZeroChanged(): vscode.Event<boolean> { return this._onHideZeroChanged.event; }
 
+    private _showBitVis: boolean = true;
     private _onBitVisChanged: vscode.EventEmitter<boolean> = new vscode.EventEmitter<boolean>();
     public get onBitVisChanged(): vscode.Event<boolean> { return this._onBitVisChanged.event; }
+    public get showBitVis(): boolean { return this._showBitVis; }
 
     private _onStructSetChanged: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
     public get onStructSetChanged(): vscode.Event<void> { return this._onStructSetChanged.event; }
@@ -99,7 +101,8 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     this._onHideZeroChanged.fire(this._hideZero);
                     break;
                 case 'toggleBitVis':
-                    this._onBitVisChanged.fire(message.showBitVis);
+                    this._showBitVis = message.showBitVis;
+                    this._onBitVisChanged.fire(this._showBitVis);
                     break;
             }
         });

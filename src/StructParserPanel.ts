@@ -54,6 +54,7 @@ export class StructParserPanel {
     private _htmlInitialized = false;
     private _webviewReady = false;
     private _pendingMessage: any = null;
+    private _bitVisVisible = true;
 
     public static createOrShow(extensionUri: vscode.Uri, structName?: string): StructParserPanel {
         if (structName && StructParserPanel.panels.has(structName)) {
@@ -402,6 +403,7 @@ export class StructParserPanel {
     }
 
     public setBitVisVisible(visible: boolean) {
+        this._bitVisVisible = visible;
         this._panel.webview.postMessage({
             command: 'setBitVisVisible',
             visible
@@ -421,7 +423,8 @@ export class StructParserPanel {
             isUnion,
             hexValue,
             fields,
-            adjustedValue: false
+            adjustedValue: false,
+            bitVisEnabled: this._bitVisVisible
         };
     }
 
@@ -1442,6 +1445,8 @@ export class StructParserPanel {
                 let currentStructName = '';
                 let currentFields = [];
                 let hideZero = false;
+                let bitVisEnabled = true;
+                let currentStructBits = 0;
                 let allCollapsed = false;
 
                 const ROW_BITS = 32;
@@ -1628,6 +1633,10 @@ export class StructParserPanel {
                             // 切换显示新 struct，不需重建 HTML
                             currentStructName = message.structName || '';
                             currentFields = message.fields || [];
+                            currentStructBits = message.structBits || 0;
+                            if (message.bitVisEnabled !== undefined) {
+                                bitVisEnabled = message.bitVisEnabled;
+                            }
                             if (currentStructName) {
                                 document.getElementById('emptyState').style.display = 'none';
                                 document.getElementById('contentPanel').style.display = 'flex';
@@ -1676,10 +1685,18 @@ export class StructParserPanel {
                             hideZero = message.hideZero;
                             applyHideZero();
                             break;
-                        case 'setBitVisVisible':
+                        case 'setBitVisVisible': {
+                            bitVisEnabled = message.visible;
                             const bvSection = document.getElementById('bitvisSection');
-                            if (bvSection) bvSection.style.display = message.visible ? 'block' : 'none';
+                            if (bvSection) {
+                                if (bitVisEnabled && currentFields.length > 0 && currentStructBits > 0) {
+                                    renderBitVis(currentFields, currentStructBits);
+                                } else {
+                                    bvSection.style.display = 'none';
+                                }
+                            }
                             break;
+                        }
                     }
                 });
 
@@ -1770,6 +1787,11 @@ export class StructParserPanel {
                 // memberIndex/memberCount so the renderer can position it vertically:
                 //   - Non-union fields: memberCount=1 → span full row height
                 //   - Union member k of M: top=k/M, height=1/M of row height
+                //
+                // Only leaf/basic-type fields (e.g. uint1~uint32) are pushed into lanes.
+                // Container types (struct/union) are transparent: we recurse into their
+                // children without adding a block for the container itself, so parent
+                // containers never overlap with their own member fields.
                 function collectLanes(fields) {
                     const lanes = [[]];
                     function ensureLane(idx) {
@@ -1778,32 +1800,36 @@ export class StructParserPanel {
                     function makeField(f, mi, mc) {
                         return { ...f, memberIndex: mi, memberCount: mc };
                     }
+                    function isContainer(f) {
+                        return f.type === 'struct' || f.type === 'union';
+                    }
                     function walkGroup(fieldList, baseLane, inheritedMi, inheritedMc) {
                         const overlapGroups = groupByOverlap(fieldList);
                         overlapGroups.forEach(group => {
                             if (group.length === 1) {
                                 const f = group[0];
-                                if (f.type === 'struct' || f.type === 'union') {
-                                    ensureLane(baseLane);
-                                    lanes[baseLane].push(makeField(f, inheritedMi, inheritedMc));
+                                if (isContainer(f)) {
+                                    // Container: transparent — only recurse, never push
                                     if (f.fields && f.fields.length > 0) walkGroup(f.fields, baseLane, inheritedMi, inheritedMc);
                                 } else if (f.fields && f.fields.length > 0) {
+                                    // Non-container with children: also recurse
                                     walkGroup(f.fields, baseLane, inheritedMi, inheritedMc);
                                 } else {
+                                    // Leaf basic-type field: push into lane
                                     ensureLane(baseLane);
                                     lanes[baseLane].push(makeField(f, inheritedMi, inheritedMc));
                                 }
                             } else {
-                                // Union members: Nth member → lane (baseLane + N)
+                                // Overlapping siblings (union members): Nth member → lane (baseLane + N)
                                 group.forEach((f, fi) => {
                                     const targetLane = baseLane + fi;
-                                    ensureLane(targetLane);
-                                    if (f.type === 'struct' || f.type === 'union') {
-                                        lanes[targetLane].push(makeField(f, fi, group.length));
+                                    if (isContainer(f)) {
+                                        // Container union member: transparent — only recurse
                                         if (f.fields && f.fields.length > 0) walkGroup(f.fields, targetLane, fi, group.length);
                                     } else if (f.fields && f.fields.length > 0) {
                                         walkGroup(f.fields, targetLane, fi, group.length);
                                     } else {
+                                        ensureLane(targetLane);
                                         lanes[targetLane].push(makeField(f, fi, group.length));
                                     }
                                 });
@@ -1819,7 +1845,13 @@ export class StructParserPanel {
                     const rowsContainer = document.getElementById('bitvisRows');
                     const legend = document.getElementById('bitvisLegend');
                     if (!section || !rowsContainer) return;
-                
+
+                    // 全局开关关闭时直接隐藏，跳过渲染
+                    if (!bitVisEnabled) {
+                        section.style.display = 'none';
+                        return;
+                    }
+
                     section.style.display = 'block';
                     rowsContainer.innerHTML = '';
                     legend.innerHTML = '';
@@ -2081,6 +2113,7 @@ export class StructParserPanel {
                         return;
                     }
                     const totalBits = data.struct?.bits || currentFields.reduce((sum, f) => sum + f.bits, 0);
+                    currentStructBits = totalBits;
                     renderFieldsTree(data.fields);
                     renderBitVis(data.fields, totalBits);
                     expandAll();

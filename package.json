@@ -31,16 +31,7 @@
   "contributes": {
     "commands": [
     ],
-    "menus": {
-      "editor/context": [
-        {
-          "command": "structParser.parseFromHex",
-          "when": "editorHasSelection",
-          "group": "9_cutcopypaste@5"
-        }
-      ],
-      "view/title": []
-    },
+    "menus": {},
     "viewsContainers": {
       "activitybar": [
         {

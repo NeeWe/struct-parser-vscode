@@ -98,6 +98,8 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         structSelectorProvider.onStructSelected((struct) => {
             const panel = StructParserPanel.createOrShow(context.extensionUri, struct.type);
+            // 同步当前 BitView 开关状态到 panel（新 panel 默认为 true，需与侧边栏保持一致）
+            panel.setBitVisVisible(structSelectorProvider.showBitVis);
             panel.showStructDefinition(struct);
         })
     );
