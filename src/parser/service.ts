@@ -399,7 +399,7 @@ export class StructParserService {
           for (const nf of flatNested) {
             result.push({
               ...nf,
-              offset: nf.offset + field.offset
+              offset: nf.offset
             });
           }
         }
