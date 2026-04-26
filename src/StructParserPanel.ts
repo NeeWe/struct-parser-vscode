@@ -1698,7 +1698,7 @@ export class StructParserPanel {
                         while (lanes.length <= idx) lanes.push([]);
                     }
                     function makeField(f, mi, mc) {
-                        return { name: f.name, type: f.type, bits: f.bits, offset: f.offset, memberIndex: mi, memberCount: mc };
+                        return { ...f, memberIndex: mi, memberCount: mc };
                     }
                     function walkGroup(fieldList, baseLane, inheritedMi, inheritedMc) {
                         const overlapGroups = groupByOverlap(fieldList);
@@ -1912,8 +1912,7 @@ export class StructParserPanel {
                                 const topPct = (mi / mc) * 100;
                                 const heightPct = (1 / mc) * 100;
                 
-                                const vInfo = valueByPath[f.name] || {};
-                                const vStr = vInfo.value !== undefined ? ', value=' + vInfo.value + ' (' + (vInfo.hex||'') + ')' : '';
+                                const vStr = f.value !== undefined ? ', value=' + f.value + ' (' + (f.hex||'') + ')' : '';
                 
                                 const bEl = document.createElement('div');
                                 bEl.className = 'bitvis-field-block' + (mc > 1 && mi > 0 ? ' union-variant' : '');
