@@ -49,6 +49,12 @@ export class StructParserPanel {
         binaryValue: string;
     } | null = null;
 
+    // HTML-once 模式：只在第一次设置 webview.html，后续通过 postMessage 更新状态
+    // 避免每次切换 struct 都重建 2000+ 行 HTML 字符串
+    private _htmlInitialized = false;
+    private _webviewReady = false;
+    private _pendingMessage: any = null;
+
     public static createOrShow(extensionUri: vscode.Uri, structName?: string): StructParserPanel {
         if (structName && StructParserPanel.panels.has(structName)) {
             const panel = StructParserPanel.panels.get(structName)!;
@@ -90,6 +96,14 @@ export class StructParserPanel {
         this._panel.webview.onDidReceiveMessage(
             async message => {
                 switch (message.command) {
+                    case 'webviewReady':
+                        // WebView 已加载完成，可以发送待处理的消息
+                        this._webviewReady = true;
+                        if (this._pendingMessage) {
+                            this._panel.webview.postMessage(this._pendingMessage);
+                            this._pendingMessage = null;
+                        }
+                        return;
                     case 'parse':
                         this._parseHexValue(message.hexValue, message.structName);
                         return;
@@ -110,7 +124,7 @@ export class StructParserPanel {
     }
 
     private _loadStructData() {
-        // 1. Try cached struct sets first (globalState)
+        // 1. 优先从 globalState 缓存读取激活结构集
         if (StructParserPanel.context) {
             const cachedData = getActiveStructData(StructParserPanel.context);
             if (cachedData) {
@@ -119,7 +133,7 @@ export class StructParserPanel {
             }
         }
 
-        // 2. Fall back to workspace configuration
+        // 2. 回落到 workspace 配置
         const config = vscode.workspace.getConfiguration('structParser');
         const jsonPath = config.get<string>('jsonPath');
 
@@ -129,25 +143,6 @@ export class StructParserPanel {
                 this._structData = JSON.parse(content);
             } catch (error) {
                 vscode.window.showErrorMessage(`Failed to load struct JSON: ${error}`);
-            }
-        } else {
-            const workspaceFolders = vscode.workspace.workspaceFolders;
-            if (workspaceFolders) {
-                const possiblePaths = [
-                    path.join(workspaceFolders[0].uri.fsPath, 'output.json'),
-                    path.join(workspaceFolders[0].uri.fsPath, 'structs.json'),
-                ];
-
-                for (const tryPath of possiblePaths) {
-                    if (fs.existsSync(tryPath)) {
-                        try {
-                            const content = fs.readFileSync(tryPath, 'utf-8');
-                            this._structData = JSON.parse(content);
-                            break;
-                        } catch (error) {
-                        }
-                    }
-                }
             }
         }
     }
@@ -413,21 +408,46 @@ export class StructParserPanel {
         });
     }
 
+    private _buildShowStructMsg(): any {
+        const structName = this._currentStruct?.type || '';
+        const structBits = this._currentStruct?.bits || 0;
+        const isUnion = this._structData?.unions?.some(u => u.type === structName) ?? false;
+        const hexValue = this._currentParsedData?.hexValue || '';
+        const fields = this._currentParsedData?.fields || [];
+        return {
+            command: 'showStruct',
+            structName,
+            structBits,
+            isUnion,
+            hexValue,
+            fields,
+            adjustedValue: false
+        };
+    }
+
     private _update() {
-        const webview = this._panel.webview;
         this._panel.title = this._currentStruct?.type || 'Struct Parser';
-        this._panel.webview.html = this._getHtmlForWebview(webview);
+        if (!this._htmlInitialized) {
+            // 第一次设置 HTML，后续不再重建
+            this._panel.webview.html = this._getHtmlForWebview(this._panel.webview);
+            this._htmlInitialized = true;
+            // 如果已有待显示的 struct，缓存等 webviewReady 再发
+            if (this._currentStruct) {
+                this._pendingMessage = this._buildShowStructMsg();
+            }
+        } else {
+            const msg = this._buildShowStructMsg();
+            if (this._webviewReady) {
+                this._panel.webview.postMessage(msg);
+            } else {
+                // WebView 尚未就绪，缓存消息
+                this._pendingMessage = msg;
+            }
+        }
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
-        const hasStruct = this._currentStruct !== null;
-        const structName = this._currentStruct?.type || '';
-        const structBits = this._currentStruct?.bits || 0;
-        const structBytes = Math.ceil(structBits / 8);
-        const isUnion = this._structData?.unions?.some(u => u.type === structName) ?? false;
-        const initialHexValue = this._currentParsedData?.hexValue || '';
-        const initialFieldsJson = this._currentParsedData ? JSON.stringify(this._currentParsedData.fields) : '[]';
-
+        // HTML-once: 所有状态变量均通过 postMessage 动态更新，不嵌入模板
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -1320,8 +1340,8 @@ export class StructParserPanel {
         </head>
         <body>
             <div class="main">
-                <!-- Empty State -->
-                <div class="empty-state" id="emptyState" style="display: ${hasStruct ? 'none' : 'flex'}">
+                <!-- Empty State: 始终显示，由 showStruct 消息切换 -->
+                <div class="empty-state" id="emptyState" style="display: flex">
                     <div class="empty-icon">⚡</div>
                     <div class="empty-title">No Struct Selected</div>
                     <div class="empty-text">Select a struct from the sidebar to view and edit its binary fields</div>
@@ -1341,15 +1361,15 @@ export class StructParserPanel {
                     </div>
                 </div>
 
-                <!-- Content Panel -->
-                <div class="content-panel" id="contentPanel" style="display: ${hasStruct ? 'flex' : 'none'}">
+                <!-- Content Panel: 初始隐藏 -->
+                <div class="content-panel" id="contentPanel" style="display: none">
                     <!-- Top Bar -->
                     <div class="main-topbar">
                         <div class="topbar-left">
                             <div class="topbar-struct-icon">⚡</div>
                             <div class="topbar-info">
-                                <h2 id="structName">${structName} <span class="type-badge ${isUnion ? 'union' : 'struct'}">${isUnion ? 'union' : 'struct'}</span></h2>
-                                <p id="structMeta">${structBits} bits · ${structBytes} bytes</p>
+                                <h2 id="structName"></h2>
+                                <p id="structMeta"></p>
                             </div>
                         </div>
                     </div>
@@ -1368,13 +1388,13 @@ export class StructParserPanel {
                         <div class="hex-row">
                             <div class="hex-input-group">
                                 <span class="hex-prefix">0x</span>
-                                <input type="text" class="hex-input" id="hexInput" placeholder="Enter hex value..." value="${initialHexValue}">
+                                <input type="text" class="hex-input" id="hexInput" placeholder="Enter hex value..." value="">
                             </div>
                             <button class="hex-apply-btn" id="btnParse">Parse</button>
                         </div>
                         <div class="hex-info" id="hexInfo">
-                            <span><span class="label">Type: </span><span class="value" id="hexInfoType">${isUnion ? 'union' : 'struct'}</span></span>
-                            <span><span class="label">Size: </span><span class="value" id="hexInfoSize">${structBits} bits</span></span>
+                            <span><span class="label">Type: </span><span class="value" id="hexInfoType">struct</span></span>
+                            <span><span class="label">Size: </span><span class="value" id="hexInfoSize"></span></span>
                             <span id="adjustBadge" style="display:none"><span class="adjust-badge">Auto-adjusted</span></span>
                         </div>
                     </div>
@@ -1419,8 +1439,8 @@ export class StructParserPanel {
 
             <script>
                 const vscode = acquireVsCodeApi();
-                let currentStructName = '${structName.replace(/'/g, "\\'")}';
-                let currentFields = ${initialFieldsJson};
+                let currentStructName = '';
+                let currentFields = [];
                 let hideZero = false;
                 let allCollapsed = false;
 
@@ -1538,15 +1558,8 @@ export class StructParserPanel {
                     updateFieldsCount();
                 });
 
-                if (currentFields.length > 0) {
-                    renderFieldsTree(currentFields);
-                    const totalBits = ${structBits} || currentFields.reduce((sum, f) => sum + f.bits, 0);
-                    renderBitVis(currentFields, totalBits);
-                    const ctPanel = document.getElementById('contentPanel');
-                    const emState = document.getElementById('emptyState');
-                    if (ctPanel) ctPanel.style.display = 'flex';
-                    if (emState) emState.style.display = 'none';
-                }
+                // HTML-once: 不再内嵌初始状态，通过 webviewReady + showStruct 消息动态初始化
+                vscode.postMessage({ command: 'webviewReady' });
 
                 function parseValue() {
                     const hexValue = document.getElementById('hexInput')?.value?.trim();
@@ -1611,10 +1624,44 @@ export class StructParserPanel {
                 window.addEventListener('message', event => {
                     const message = event.data;
                     switch (message.command) {
-                        case 'setHexValue':
+                        case 'showStruct': {
+                            // 切换显示新 struct，不需重建 HTML
+                            currentStructName = message.structName || '';
+                            currentFields = message.fields || [];
+                            if (currentStructName) {
+                                document.getElementById('emptyState').style.display = 'none';
+                                document.getElementById('contentPanel').style.display = 'flex';
+                                const iu = message.isUnion;
+                                document.getElementById('structName').innerHTML =
+                                    currentStructName + ' <span class="type-badge ' + (iu ? 'union' : 'struct') + '">' + (iu ? 'union' : 'struct') + '</span>';
+                                document.getElementById('structMeta').textContent =
+                                    message.structBits + ' bits \u00b7 ' + Math.ceil(message.structBits / 8) + ' bytes';
+                                document.getElementById('hexInfoType').textContent = iu ? 'union' : 'struct';
+                                document.getElementById('hexInfoSize').textContent = message.structBits + ' bits';
+                                const hexInput = document.getElementById('hexInput');
+                                if (hexInput) hexInput.value = message.hexValue || '';
+                                const searchInput = document.getElementById('fieldsSearchInput');
+                                if (searchInput) searchInput.value = '';
+                                if (currentFields.length > 0) {
+                                    renderFieldsTree(currentFields);
+                                    renderBitVis(currentFields, message.structBits);
+                                    expandAll();
+                                } else {
+                                    document.getElementById('fieldsTree').innerHTML = '';
+                                    const bvSection = document.getElementById('bitvisSection');
+                                    if (bvSection) bvSection.style.display = 'none';
+                                }
+                            } else {
+                                document.getElementById('emptyState').style.display = 'flex';
+                                document.getElementById('contentPanel').style.display = 'none';
+                            }
+                            break;
+                        }
+                        case 'setHexValue': {
                             const hexInput = document.getElementById('hexInput');
                             if (hexInput) hexInput.value = message.hexValue;
                             break;
+                        }
                         case 'selectStruct':
                             currentStructName = message.structName;
                             break;

@@ -30,23 +30,6 @@
   },
   "contributes": {
     "commands": [
-      {
-        "command": "structParser.openViewer",
-        "title": "Open Struct Parser Viewer",
-        "category": "Struct Parser",
-        "icon": "$(preview)"
-      },
-      {
-        "command": "structParser.parseFromHex",
-        "title": "Parse Hex Value",
-        "category": "Struct Parser"
-      },
-      {
-        "command": "structParser.parseFromCommandTxt",
-        "title": "Parse from command.txt",
-        "category": "Struct Parser",
-        "icon": "$(file-code)"
-      }
     ],
     "menus": {
       "editor/context": [

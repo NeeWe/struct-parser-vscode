@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getStructSets, saveStructSet, deleteStructSet, getActiveStructSetName, setActiveStructSet, getActiveStructData } from './dataManager';
+import { getStructSets, saveStructSet, deleteStructSet, getActiveStructSetName, setActiveStructSet, getActiveStructData, clearAllStructSets, getStructSetData, StructSetMeta } from './dataManager';
 
 interface StructField {
     name: string;
@@ -46,12 +46,14 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
     private _context: vscode.ExtensionContext;
 
+    // 缓存：避免重复遍历和 union Set 查找 O(n×m)
+    private _cachedAllStructs: StructDef[] | null = null;
+    private _unionTypeSet: Set<string> | null = null;
+
     constructor(extensionUri: vscode.Uri, context: vscode.ExtensionContext) {
         this._extensionUri = extensionUri;
         this._context = context;
-        this._loadStructData().catch(err => {
-            vscode.window.showErrorMessage(`Failed to load struct data: ${err}`);
-        });
+        // 不在构造函数中加载数据，等 resolveWebviewView 时再懒加载，避免重复 I/O
     }
 
     public async resolveWebviewView(
@@ -110,6 +112,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         const cachedData = getActiveStructData(this._context);
         if (cachedData) {
             this._structData = cachedData;
+            this._invalidateCache();
             return;
         }
 
@@ -164,6 +167,9 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             return;
         }
 
+        // 加载时也需要使缓存失效
+        this._invalidateCache();
+
         if (jsonPath && fs.existsSync(jsonPath)) {
             try {
                 const content = fs.readFileSync(jsonPath, 'utf-8');
@@ -178,24 +184,15 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     private _handleSearch(searchTerm: string) {
         if (!this._structData || !this._view) return;
 
-        const allStructs = [...this._structData.structs, ...this._structData.unions];
-        
-        if (!searchTerm.trim()) {
-            this._view.webview.postMessage({
-                command: 'searchResults',
-                results: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some((u: StructDef) => u.type === s.type) ?? false }))
-            });
-            return;
-        }
+        const allStructs = this._getAllStructs();
+        const unionSet = this._getUnionTypeSet();
 
-        const searchLower = searchTerm.toLowerCase();
-        const filtered = allStructs.filter(s => 
-            s.type.toLowerCase().includes(searchLower)
-        );
+        const filtered = !searchTerm.trim() ? allStructs :
+            allStructs.filter(s => s.type.toLowerCase().includes(searchTerm.toLowerCase()));
 
         this._view.webview.postMessage({
             command: 'searchResults',
-            results: filtered.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some((u: StructDef) => u.type === s.type) ?? false }))
+            results: filtered.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: unionSet.has(s.type) }))
         });
     }
 
@@ -222,34 +219,49 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             title: 'Select Struct Parser JSON File'
         });
 
-        if (result && result[0]) {
+        if (!result || !result[0]) { return; }
+
+        const filePath = result[0].fsPath;
+
+        // 先请用户命名，再读取文件，避免大文件加载时用户等待无反馈
+        const defaultName = path.basename(filePath, '.json');
+        const setName = await vscode.window.showInputBox({
+            title: 'Save Struct Set',
+            placeHolder: 'Enter a name for this struct set',
+            value: defaultName,
+            prompt: 'This name will be used to identify the struct set in the cache'
+        });
+        if (!setName) { return; }
+
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: `Loading "${setName}"...`,
+            cancellable: false
+        }, async (progress) => {
             try {
-                const content = fs.readFileSync(result[0].fsPath, 'utf-8');
+                progress.report({ message: 'Reading file...' });
+                // 异步读文件，不阻塞 Extension Host
+                const content = await fs.promises.readFile(filePath, 'utf-8');
+
+                progress.report({ message: 'Parsing JSON...', increment: 50 });
                 const data = JSON.parse(content);
+
+                progress.report({ message: 'Saving to cache...', increment: 80 });
+                await saveStructSet(this._context, setName, data, filePath);
+                await setActiveStructSet(this._context, setName);
+
                 this._structData = data;
-                this._lastJsonPath = result[0].fsPath;
-                
-                // Prompt for a name to save to cache
-                const defaultName = path.basename(result[0].fsPath, '.json');
-                const setName = await vscode.window.showInputBox({
-                    title: 'Save Struct Set',
-                    placeHolder: 'Enter a name for this struct set',
-                    value: defaultName,
-                    prompt: 'This name will be used to identify the struct set in the cache'
-                });
-                
-                if (setName) {
-                    saveStructSet(this._context, setName, data, result[0].fsPath);
-                    setActiveStructSet(this._context, setName);
-                    vscode.window.showInformationMessage(`Saved struct set "${setName}" with ${this._getAllStructs().length} structs`);
-                }
-                
+                this._lastJsonPath = filePath;
+                this._invalidateCache();
+
+                const count = (data.structs?.length ?? 0) + (data.unions?.length ?? 0);
+                vscode.window.showInformationMessage(`Saved "${setName}" with ${count} types`);
                 this._onStructSetChanged.fire();
                 this._updateWebview();
             } catch (error) {
                 vscode.window.showErrorMessage(`Failed to load JSON: ${error}`);
             }
-        }
+        });
     }
 
     private async _handleShowImportMenu() {
@@ -283,9 +295,9 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
             'No'
         );
         if (confirmed === 'Yes') {
-            await this._context.globalState.update('structParser.structSets', undefined);
-            await this._context.globalState.update('structParser.activeStructSet', undefined);
+            await clearAllStructSets(this._context);
             this._structData = null;
+            this._invalidateCache();
             this._onStructSetChanged.fire();
             this._updateWebview();
             vscode.window.showInformationMessage('All cached struct sets cleared');
@@ -464,11 +476,11 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     }
 
     private async _handleSelectStructSet(setName: string) {
-        const sets = getStructSets(this._context);
-        const selected = sets.find(s => s.name === setName);
-        if (selected) {
-            this._structData = selected.data;
-            setActiveStructSet(this._context, setName);
+        const data = getStructSetData(this._context, setName);
+        if (data) {
+            this._structData = data;
+            this._invalidateCache();
+            await setActiveStructSet(this._context, setName);
             this._onStructSetChanged.fire();
             this._updateWebview();
         }
@@ -493,15 +505,28 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    private _invalidateCache() {
+        this._cachedAllStructs = null;
+        this._unionTypeSet = null;
+    }
+
     private _getAllStructs(): StructDef[] {
-        if (!this._structData) return [];
+        if (this._cachedAllStructs !== null) { return this._cachedAllStructs; }
+        if (!this._structData) { return (this._cachedAllStructs = []); }
         const all = [...this._structData.structs, ...this._structData.unions];
         const seen = new Set<string>();
-        return all.filter(s => {
+        this._cachedAllStructs = all.filter(s => {
             if (seen.has(s.type)) return false;
             seen.add(s.type);
             return true;
         });
+        return this._cachedAllStructs;
+    }
+
+    private _getUnionTypeSet(): Set<string> {
+        if (this._unionTypeSet !== null) { return this._unionTypeSet; }
+        this._unionTypeSet = new Set(this._structData?.unions?.map(u => u.type) ?? []);
+        return this._unionTypeSet;
     }
 
     private _getJsonConfigs(): Array<{name: string, path: string}> {
@@ -513,11 +538,12 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         if (!this._view) return;
 
         const allStructs = this._getAllStructs();
+        const unionSet = this._getUnionTypeSet();
         const structSets = getStructSets(this._context);
         const activeSetName = getActiveStructSetName(this._context);
         this._view.webview.postMessage({
             command: 'updateData',
-            structs: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: this._structData?.unions?.some((u: StructDef) => u.type === s.type) ?? false })),
+            structs: allStructs.map(s => ({ name: s.type, structKind: s.type, bits: s.bits, isUnion: unionSet.has(s.type) })),
             hasData: allStructs.length > 0,
             structSets: structSets.map(s => ({ name: s.name, importedAt: s.importedAt })),
             activeSetName: activeSetName || ''
@@ -527,9 +553,11 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
     public async loadFromPath(jsonPath: string) {
         try {
-            const content = fs.readFileSync(jsonPath, 'utf-8');
+            // 异步读文件，避免同步阻塞 Extension Host
+            const content = await fs.promises.readFile(jsonPath, 'utf-8');
             this._structData = JSON.parse(content);
             this._lastJsonPath = jsonPath;
+            this._invalidateCache();
             this._updateWebview();
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to load JSON: ${error}`);
@@ -541,11 +569,13 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
-        const allStructs = this._getAllStructs().map(s => ({
+        const allStructs = this._getAllStructs();
+        const unionSet = this._getUnionTypeSet();
+        const initialStructs = allStructs.map(s => ({
             name: s.type,
             structKind: s.type,
             bits: s.bits,
-            isUnion: this._structData?.unions?.some((u: StructDef) => u.type === s.type) ?? false
+            isUnion: unionSet.has(s.type)
         }));
 
         return `<!DOCTYPE html>
@@ -945,7 +975,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 </div>
 
                 <div class="struct-list" id="structList">
-                    ${allStructs.length > 0 ? allStructs.map(s => `
+                    ${initialStructs.length > 0 ? initialStructs.map(s => `
                         <div class="struct-item" data-name="${s.structKind.replace(/"/g, '&quot;')}" data-is-union="${s.isUnion}">
                             <span class="struct-dot ${s.isUnion ? 'union' : 'struct'}"></span>
                             <div class="struct-item-content">
@@ -971,13 +1001,13 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
                 <div class="sidebar-footer">
                     <span>Structs</span>
-                    <span class="sidebar-count" id="structCount">${allStructs.length}</span>
+                    <span class="sidebar-count" id="structCount">${initialStructs.length}</span>
                 </div>
             </div>
 
             <script>
                 const vscode = acquireVsCodeApi();
-                let allStructs = ${JSON.stringify(allStructs)};
+                let allStructs = ${JSON.stringify(initialStructs)};
                 let selectedStruct = null;
                 let hideZero = false;
                 let showBitVis = true;
