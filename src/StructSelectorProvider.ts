@@ -37,6 +37,9 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
     private _onHideZeroChanged: vscode.EventEmitter<boolean> = new vscode.EventEmitter<boolean>();
     public get onHideZeroChanged(): vscode.Event<boolean> { return this._onHideZeroChanged.event; }
 
+    private _onBitVisChanged: vscode.EventEmitter<boolean> = new vscode.EventEmitter<boolean>();
+    public get onBitVisChanged(): vscode.Event<boolean> { return this._onBitVisChanged.event; }
+
     constructor(extensionUri: vscode.Uri) {
         this._extensionUri = extensionUri;
         this._loadStructData().catch(err => {
@@ -44,18 +47,21 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
         });
     }
 
-    public resolveWebviewView(
+    public async resolveWebviewView(
         webviewView: vscode.WebviewView,
         context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken
     ) {
         this._view = webviewView;
 
-        webviewView.webview.options = {
+        const opts: any = {
             enableScripts: true,
             localResourceRoots: [this._extensionUri]
         };
+        opts.retainContextWhenHidden = true;
+        webviewView.webview.options = opts;
 
+        await this._loadStructData();
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
         webviewView.webview.onDidReceiveMessage(async (message) => {
@@ -82,6 +88,9 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 case 'toggleHideZero':
                     this._hideZero = message.hideZero;
                     this._onHideZeroChanged.fire(this._hideZero);
+                    break;
+                case 'toggleBitVis':
+                    this._onBitVisChanged.fire(message.showBitVis);
                     break;
             }
         });
@@ -538,12 +547,14 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     padding: 6px 12px;
                     border-bottom: 1px solid var(--vscode-panel-border);
                     display: flex;
-                    gap: 6px;
+                    gap: 4px;
+                    flex-wrap: wrap;
                 }
 
                 .toolbar-btn {
                     flex: 1;
-                    padding: 5px 8px;
+                    min-width: 0;
+                    padding: 4px 6px;
                     font-size: 11px;
                     font-weight: 500;
                     border: 1px solid var(--vscode-panel-border);
@@ -555,7 +566,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    gap: 4px;
+                    gap: 3px;
                     font-family: var(--vscode-font-family);
                 }
 
@@ -571,7 +582,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 }
 
                 .config-select {
-                    padding: 5px 8px;
+                    padding: 4px 8px;
                     font-size: 11px;
                     font-weight: 500;
                     border: 1px solid var(--vscode-panel-border);
@@ -580,7 +591,9 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     color: var(--vscode-foreground);
                     cursor: pointer;
                     font-family: var(--vscode-font-family);
-                    min-width: 100px;
+                    min-width: 80px;
+                    max-width: 140px;
+                    flex: 1;
                 }
 
                 .config-select:focus {
@@ -605,11 +618,27 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 .struct-item {
                     display: flex;
                     align-items: center;
-                    gap: 8px;
-                    padding: 6px 16px;
+                    gap: 10px;
+                    padding: 7px 16px;
                     cursor: pointer;
-                    transition: background 0.1s;
-                    border-left: 2px solid transparent;
+                    transition: background 0.12s, border-color 0.12s;
+                    border-left: 3px solid transparent;
+                    position: relative;
+                }
+
+                .struct-item::after {
+                    content: '';
+                    position: absolute;
+                    left: 16px;
+                    right: 16px;
+                    bottom: 0;
+                    height: 1px;
+                    background: var(--vscode-panel-border);
+                    opacity: 0.4;
+                }
+
+                .struct-item:last-child::after {
+                    display: none;
                 }
 
                 .struct-item:hover {
@@ -626,14 +655,29 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 }
 
                 .struct-dot {
-                    width: 8px;
-                    height: 8px;
+                    width: 10px;
+                    height: 10px;
                     border-radius: 50%;
                     flex-shrink: 0;
+                    position: relative;
                 }
 
                 .struct-dot.struct { background: #4EC9B0; }
                 .struct-dot.union { background: #C586C0; }
+
+                .struct-dot.struct::after, .struct-dot.union::after {
+                    content: '';
+                    position: absolute;
+                    top: -3px;
+                    left: -3px;
+                    right: -3px;
+                    bottom: -3px;
+                    border-radius: 50%;
+                    opacity: 0.2;
+                }
+
+                .struct-dot.struct::after { background: #4EC9B0; }
+                .struct-dot.union::after { background: #C586C0; }
 
                 .struct-item-content {
                     flex: 1;
@@ -646,6 +690,11 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                    font-weight: 500;
+                }
+
+                .struct-item.selected .struct-item-name {
+                    color: var(--vscode-foreground);
                 }
 
                 .struct-item-meta {
@@ -657,19 +706,20 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 .struct-item-badge {
                     font-size: 9px;
                     font-weight: 600;
-                    padding: 1px 5px;
+                    padding: 2px 6px;
                     border-radius: 3px;
                     text-transform: uppercase;
                     flex-shrink: 0;
+                    letter-spacing: 0.3px;
                 }
 
                 .struct-item-badge.struct {
-                    background: rgba(78, 201, 176, 0.15);
+                    background: rgba(78, 201, 176, 0.12);
                     color: #4EC9B0;
                 }
 
                 .struct-item-badge.union {
-                    background: rgba(197, 134, 192, 0.15);
+                    background: rgba(197, 134, 192, 0.12);
                     color: #C586C0;
                 }
 
@@ -685,7 +735,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
                 .sidebar-count {
                     background: var(--vscode-input-background);
-                    padding: 1px 8px;
+                    padding: 2px 10px;
                     border-radius: 10px;
                     font-size: 10px;
                     font-weight: 600;
@@ -705,7 +755,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 .empty-icon {
                     font-size: 36px;
                     margin-bottom: 12px;
-                    opacity: 0.5;
+                    opacity: 0.4;
                 }
 
                 .empty-title {
@@ -723,11 +773,11 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 }
 
                 @keyframes fadeIn {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
+                    from { opacity: 0; transform: translateY(2px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
 
-                .struct-item { animation: fadeIn 0.15s ease; }
+                .struct-item { animation: fadeIn 0.2s ease; }
             </style>
         </head>
         <body>
@@ -745,14 +795,20 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 </div>
 
                 <div class="sidebar-toolbar">
-                    <button class="toolbar-btn" id="hideZeroBtn">
-                        <span>\uD83D\uDC41</span> Hide Zero
+                    <button class="toolbar-btn" id="hideZeroBtn" title="Hide zero-value fields">
+                        <span>👁</span> Hide Zero
                     </button>
-                    <button class="toolbar-btn" id="importJsonBtn">
-                        <span>\uD83D\uDCE4</span> Import
+                    <button class="toolbar-btn active" id="bitvisBtn" title="Toggle bit visualization">
+                        <span>📊</span> BitView
                     </button>
-                    <select class="config-select" id="configSelect">
-                        <option value="">Select Config</option>
+                    <button class="toolbar-btn" id="importJsonBtn" title="Import struct JSON file">
+                        <span>📥</span> Import
+                    </button>
+                    <button class="toolbar-btn" id="configBtn" title="Manage JSON configurations">
+                        <span>⚙</span>
+                    </button>
+                    <select class="config-select" id="configSelect" title="Switch between configured JSON files">
+                        <option value="">Config...</option>
                         ${this._getJsonConfigs().map(config => `
                             <option value="${config.name}" ${this._currentJsonConfig === config.name ? 'selected' : ''}>${config.name}</option>
                         `).join('')}
@@ -771,7 +827,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                         </div>
                     `).join('') : `
                         <div class="empty-state">
-                            <div class="empty-icon">\uD83D\uDCE5</div>
+                            <div class="empty-icon">📂</div>
                             <div class="empty-title">No Structs Found</div>
                             <div class="empty-text">Import a JSON file to get started</div>
                         </div>
@@ -779,7 +835,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 </div>
 
                 <div class="sidebar-footer">
-                    <span>Structs loaded</span>
+                    <span>Structs</span>
                     <span class="sidebar-count" id="structCount">${allStructs.length}</span>
                 </div>
             </div>
@@ -789,6 +845,14 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 let allStructs = ${JSON.stringify(allStructs)};
                 let selectedStruct = null;
                 let hideZero = false;
+                let showBitVis = true;
+
+                document.getElementById('bitvisBtn').addEventListener('click', () => {
+                    showBitVis = !showBitVis;
+                    const btn = document.getElementById('bitvisBtn');
+                    btn.classList.toggle('active', showBitVis);
+                    vscode.postMessage({ command: 'toggleBitVis', showBitVis });
+                });
 
                 document.getElementById('searchInput').addEventListener('input', (e) => {
                     const term = e.target.value.toLowerCase();
@@ -861,7 +925,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     if (structs.length === 0) {
                         list.innerHTML = \`
                             <div class="empty-state">
-                                <div class="empty-icon">\uD83D\uDD0D</div>
+                                <div class="empty-icon">🔍</div>
                                 <div class="empty-title">No Results</div>
                                 <div class="empty-text">Try a different search term</div>
                             </div>

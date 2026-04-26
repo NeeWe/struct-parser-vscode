@@ -140,42 +140,31 @@ export class StructParserPanel {
         }
     }
 
-    private _parseHexValue(hexValue: string, structName: string) {
-        if (!structName) {
-            return;
-        }
-        
-        if (!this._structData) {
-            this._panel.webview.postMessage({
-                command: 'parseResult',
-                error: 'No struct data loaded. Please configure structParser.jsonPath in settings.'
-            });
-            return;
-        }
+    private _findStructDef(structName: string): StructDef | undefined {
+        const fromCurrent = this._currentStruct?.type === structName ? this._currentStruct : undefined;
+        if (fromCurrent) return fromCurrent;
 
-        const structDef = this._structData.structs.find(s => s.type === structName) ||
-                         this._structData.unions.find(s => s.type === structName);
-
-        if (!structDef) {
-            this._panel.webview.postMessage({
-                command: 'parseResult',
-                error: `Struct '${structName}' not found`
-            });
-            return;
+        if (this._structData) {
+            return this._structData.structs.find(s => s.type === structName) ||
+                   this._structData.unions.find(s => s.type === structName);
         }
+        return undefined;
+    }
 
+    private _computeParsedData(
+        hexValue: string,
+        structDef: StructDef
+    ): { parsedFields: ParsedField[]; hexValue: string; binaryValue: string; actualHex: string; wasAdjusted: boolean } | null {
         const hexClean = hexValue.replace(/^0x/i, '');
-        if (!hexClean) {
-            return;
-        }
+        if (!hexClean) return null;
+
         const inputBits = hexClean.length * 4;
         let fullValue = BigInt('0x' + hexClean);
-        
         const structBits = structDef.bits;
-        
+
         let adjustedValue = fullValue;
         let wasAdjusted = false;
-        
+
         if (inputBits < structBits) {
             const padding = structBits - inputBits;
             adjustedValue = fullValue << BigInt(padding);
@@ -185,33 +174,51 @@ export class StructParserPanel {
             adjustedValue = fullValue >> BigInt(excess);
             wasAdjusted = true;
         }
-        
+
         const maxValue = (BigInt(1) << BigInt(structBits)) - BigInt(1);
         if (adjustedValue > maxValue) {
             adjustedValue = adjustedValue & maxValue;
             wasAdjusted = true;
         }
-        
-        const binaryValue = adjustedValue.toString(2).padStart(structBits, '0');
 
+        const binaryValue = adjustedValue.toString(2).padStart(structBits, '0');
         const parsedFields = this._parseFields(structDef.fields, binaryValue, adjustedValue);
+        const actualHex = '0x' + adjustedValue.toString(16).toUpperCase().padStart(Math.ceil(structBits / 4), '0');
+
+        return { parsedFields, hexValue, binaryValue, actualHex, wasAdjusted };
+    }
+
+    private _parseHexValue(hexValue: string, structName: string) {
+        if (!structName) return;
+
+        const structDef = this._findStructDef(structName);
+        if (!structDef) {
+            this._panel.webview.postMessage({
+                command: 'parseResult',
+                error: `Struct '${structName}' not found. Please import/configure a JSON file.`
+            });
+            return;
+        }
+
+        const result = this._computeParsedData(hexValue, structDef);
+        if (!result) return;
+
+        const { parsedFields, binaryValue, actualHex, wasAdjusted } = result;
 
         this._currentParsedData = {
             struct: structDef,
             fields: parsedFields,
-            hexValue: hexValue,
-            binaryValue: binaryValue
+            hexValue,
+            binaryValue
         };
-
-        const actualHex = '0x' + adjustedValue.toString(16).toUpperCase().padStart(Math.ceil(structBits / 4), '0');
 
         this._panel.webview.postMessage({
             command: 'parseResult',
             struct: structDef,
             fields: parsedFields,
-            hexValue: hexValue,
+            hexValue,
             actualHexValue: actualHex,
-            binaryValue: binaryValue,
+            binaryValue,
             fullHexValue: actualHex,
             adjustedValue: wasAdjusted
         });
@@ -342,10 +349,18 @@ export class StructParserPanel {
 
     public showStructDefinition(struct: StructDef) {
         this._currentStruct = struct;
-        this._currentParsedData = null;
-        const hexDigits = Math.max(1, Math.ceil(struct.bits / 4));
-        const hexValue = '0x' + '0'.repeat(hexDigits);
-        this._parseHexValue(hexValue, struct.type);
+        const hexValue = '0x' + '0'.repeat(Math.max(1, Math.ceil(struct.bits / 4)));
+        const result = this._computeParsedData(hexValue, struct);
+        if (result) {
+            this._currentParsedData = {
+                struct,
+                fields: result.parsedFields,
+                hexValue: result.hexValue,
+                binaryValue: result.binaryValue
+            };
+        } else {
+            this._currentParsedData = null;
+        }
         this._update();
     }
 
@@ -357,6 +372,13 @@ export class StructParserPanel {
         this._panel.webview.postMessage({
             command: 'setHideZero',
             hideZero
+        });
+    }
+
+    public setBitVisVisible(visible: boolean) {
+        this._panel.webview.postMessage({
+            command: 'setBitVisVisible',
+            visible
         });
     }
 
@@ -386,7 +408,7 @@ export class StructParserPanel {
 
                 body {
                     font-family: var(--vscode-font-family);
-                    font-size: 13px;
+                    font-size: var(--vscode-font-size, 13px);
                     color: var(--vscode-foreground);
                     background-color: var(--vscode-editor-background);
                     line-height: 1.5;
@@ -399,7 +421,7 @@ export class StructParserPanel {
                     overflow: hidden;
                 }
 
-                /* Empty State */
+                /* ===== Empty State ===== */
                 .empty-state {
                     flex: 1;
                     display: flex;
@@ -413,7 +435,7 @@ export class StructParserPanel {
                 .empty-icon {
                     font-size: 48px;
                     margin-bottom: 16px;
-                    opacity: 0.5;
+                    opacity: 0.4;
                 }
 
                 .empty-title {
@@ -469,7 +491,7 @@ export class StructParserPanel {
                     color: var(--vscode-descriptionForeground);
                 }
 
-                /* Content Panel */
+                /* ===== Content Panel ===== */
                 .content-panel {
                     display: flex;
                     flex-direction: column;
@@ -477,7 +499,7 @@ export class StructParserPanel {
                     overflow: hidden;
                 }
 
-                /* Top Bar */
+                /* ===== Top Bar ===== */
                 .main-topbar {
                     padding: 12px 24px;
                     border-bottom: 1px solid var(--vscode-panel-border);
@@ -485,12 +507,14 @@ export class StructParserPanel {
                     align-items: center;
                     justify-content: space-between;
                     background: var(--vscode-panel-background);
+                    flex-shrink: 0;
                 }
 
                 .topbar-left {
                     display: flex;
                     align-items: center;
                     gap: 12px;
+                    min-width: 0;
                 }
 
                 .topbar-struct-icon {
@@ -537,16 +561,255 @@ export class StructParserPanel {
                     color: #C586C0;
                 }
 
-                /* Hex Input Section */
-                .hex-section {
-                    padding: 16px 24px;
+                /* ===== Bit Visualization Grid (32-bit rows) ===== */
+                .bitvis-section {
+                    padding: 10px 24px 8px;
                     border-bottom: 1px solid var(--vscode-panel-border);
                     background: var(--vscode-panel-background);
+                    flex-shrink: 0;
+                    max-height: 360px;
+                    overflow-y: auto;
+                }
+
+                .bitvis-section::-webkit-scrollbar {
+                    width: 4px;
+                }
+
+                .bitvis-section::-webkit-scrollbar-thumb {
+                    background: var(--vscode-scrollbarSlider-background);
+                    border-radius: 2px;
+                }
+
+                .bitvis-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 6px;
+                    flex-shrink: 0;
+                }
+
+                .bitvis-title {
+                    font-size: 11px;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    color: var(--vscode-descriptionForeground);
+                }
+
+                .bitvis-legend {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    align-items: center;
+                }
+
+                .bitvis-legend-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-size: 11px;
+                    color: var(--vscode-descriptionForeground);
+                }
+
+                .bitvis-legend-dot {
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 2px;
+                    flex-shrink: 0;
+                }
+
+                /* === 32-bit row === */
+                .bitvis-row {
+                    position: relative;
+                    width: 100%;
+                    height: 48px;
+                    margin-bottom: 0;
+                    border-radius: 0;
+                    background: var(--vscode-editor-background);
+                    border: none;
+                    overflow: hidden;
+                    flex-shrink: 0;
+                }
+
+                .bitvis-row-header {
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    bottom: 0;
+                    width: 28px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: var(--vscode-descriptionForeground);
+                    background: var(--vscode-panel-background);
+                    border-right: 1px solid var(--vscode-panel-border);
+                    z-index: 5;
+                    font-family: var(--vscode-editor-font-family);
+                    flex-shrink: 0;
+                }
+
+                .bitvis-row-body {
+                    position: absolute;
+                    left: 29px;
+                    right: 0;
+                    top: 0;
+                    bottom: 0;
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .bitvis-byte-lines {
+                    position: absolute;
+                    left: 29px;
+                    right: 0;
+                    top: 0;
+                    bottom: 0;
+                    z-index: 1;
+                    pointer-events: none;
+                }
+
+                .bitvis-byte-line {
+                    position: absolute;
+                    top: 0;
+                    bottom: 0;
+                    width: 1px;
+                    background: var(--vscode-panel-border);
+                    opacity: 0.25;
+                }
+
+                .bitvis-byte-line.major {
+                    opacity: 0.4;
+                }
+
+                /* Bit numbers row */
+                .bitvis-bits {
+                    position: absolute;
+                    left: 0;
+                    right: 0;
+                    top: 0;
+                    height: 18px;
+                    z-index: 2;
+                }
+
+                .bitvis-bit-label {
+                    position: absolute;
+                    top: 0;
+                    height: 100%;
+                    display: flex;
+                    align-items: center;
+                    font-size: 11px;
+                    color: var(--vscode-descriptionForeground);
+                    opacity: 0.55;
+                    padding-left: 2px;
+                }
+
+                /* Field blocks area */
+                .bitvis-field-area {
+                    position: absolute;
+                    left: 0;
+                    right: 0;
+                    top: 0;
+                    height: 100%;
+                    z-index: 3;
+                }
+
+                .bitvis-field-block {
+                    position: absolute;
+                    top: 0;
+                    bottom: 0;
+                    border-radius: 0;
+                    cursor: pointer;
+                    transition: all 0.12s;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    overflow: hidden;
+                    z-index: 3;
+                    min-width: 3px;
+                    opacity: 0.85;
+                    height: 100%;
+                }
+
+                .bitvis-field-block:hover {
+                    opacity: 1;
+                    z-index: 6;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+                    transform: scaleY(1.1);
+                }
+
+                .bitvis-field-block-label {
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: rgba(255,255,255,0.93);
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    padding: 0 4px;
+                    text-shadow: 0 1px 3px rgba(0,0,0,0.35);
+                }
+
+                .bitvis-field-block-type {
+                    font-size: 10px;
+                    color: rgba(255,255,255,0.65);
+                    white-space: nowrap;
+                    padding: 0 2px;
+                    flex-shrink: 0;
+                }
+
+                /* Union indicator for stacked fields */
+                .bitvis-union-indicator {
+                    position: absolute;
+                    right: 3px;
+                    top: 3px;
+                    font-size: 8px;
+                    font-weight: 700;
+                    color: rgba(255,255,255,0.8);
+                    background: rgba(0,0,0,0.3);
+                    border-radius: 2px;
+                    padding: 1px 4px;
+                    z-index: 4;
+                    pointer-events: none;
+                }
+
+                /* Stacked rows for union - height set dynamically by JS */
+                .bitvis-row.has-union {
+                    margin-bottom: 0;
+                    border: none;
+                }
+
+                /* Lane container for independent union member rows */
+                .bitvis-lane {
+                    position: relative;
+                    flex: 1;
+                    min-height: 0;
+                }
+
+                .bitvis-lane.union-lane {
+                    border-top: 1px dashed var(--vscode-panel-border);
+                }
+
+                .bitvis-field-block.union-variant {
+                    opacity: 0.75;
+                    border: 1px dashed rgba(255,255,255,0.25);
+                }
+
+                .bitvis-field-block.union-variant:hover {
+                    opacity: 0.95;
+                }
+
+                /* ===== Hex Input Section ===== */
+                .hex-section {
+                    padding: 10px 24px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    background: var(--vscode-panel-background);
+                    flex-shrink: 0;
                 }
 
                 .hex-row {
                     display: flex;
-                    gap: 12px;
+                    gap: 8px;
                     align-items: stretch;
                 }
 
@@ -557,33 +820,34 @@ export class StructParserPanel {
                     border: 1px solid var(--vscode-input-border);
                     border-radius: 6px;
                     overflow: hidden;
-                    transition: border-color 0.15s;
+                    transition: border-color 0.15s, box-shadow 0.15s;
                 }
 
                 .hex-input-group:focus-within {
                     border-color: #4EC9B0;
+                    box-shadow: 0 0 0 1px rgba(78, 201, 176, 0.2);
                 }
 
                 .hex-prefix {
                     display: flex;
                     align-items: center;
-                    padding: 0 14px;
+                    padding: 0 12px;
                     background: var(--vscode-editor-background);
                     color: #4EC9B0;
                     font-family: var(--vscode-editor-font-family);
                     font-weight: 700;
-                    font-size: 15px;
+                    font-size: 14px;
                     border-right: 1px solid var(--vscode-input-border);
                 }
 
                 .hex-input {
                     flex: 1;
-                    padding: 10px 14px;
+                    padding: 8px 12px;
                     background: var(--vscode-input-background);
                     border: none;
                     color: var(--vscode-foreground);
                     font-family: var(--vscode-editor-font-family);
-                    font-size: 15px;
+                    font-size: 14px;
                     font-weight: 500;
                     letter-spacing: 1px;
                     outline: none;
@@ -595,7 +859,7 @@ export class StructParserPanel {
                 }
 
                 .hex-apply-btn {
-                    padding: 10px 20px;
+                    padding: 8px 18px;
                     background: #4EC9B0;
                     color: #1e1e1e;
                     border: none;
@@ -609,14 +873,20 @@ export class StructParserPanel {
 
                 .hex-apply-btn:hover {
                     background: #3DB8A0;
+                    transform: translateY(-1px);
+                }
+
+                .hex-apply-btn:active {
+                    transform: translateY(0);
                 }
 
                 .hex-info {
-                    margin-top: 8px;
+                    margin-top: 6px;
                     font-size: 11px;
                     color: var(--vscode-descriptionForeground);
                     display: flex;
                     gap: 16px;
+                    align-items: center;
                 }
 
                 .hex-info .label {
@@ -629,7 +899,16 @@ export class StructParserPanel {
                     font-weight: 500;
                 }
 
-                /* Fields Section */
+                .hex-info .adjust-badge {
+                    font-size: 9px;
+                    padding: 1px 6px;
+                    border-radius: 3px;
+                    background: rgba(255, 193, 7, 0.15);
+                    color: #FFC107;
+                    font-weight: 600;
+                }
+
+                /* ===== Fields Section ===== */
                 .fields-section {
                     flex: 1;
                     overflow: hidden;
@@ -638,12 +917,13 @@ export class StructParserPanel {
                 }
 
                 .fields-header {
-                    padding: 10px 24px;
+                    padding: 8px 24px;
                     border-bottom: 1px solid var(--vscode-panel-border);
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
                     background: var(--vscode-panel-background);
+                    flex-shrink: 0;
                 }
 
                 .fields-title {
@@ -664,6 +944,12 @@ export class StructParserPanel {
                     border-radius: 10px;
                     font-size: 10px;
                     font-weight: 600;
+                }
+
+                .fields-header-right {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
                 }
 
                 .collapse-toggle-btn {
@@ -701,21 +987,21 @@ export class StructParserPanel {
                 }
 
                 .fields-search-input {
-                    width: 140px;
+                    width: 130px;
                     padding: 3px 8px 3px 26px;
-                    border: none;
-                    border-bottom: 1px solid transparent;
-                    border-radius: 0;
+                    border: 1px solid transparent;
+                    border-radius: 4px;
                     background: transparent;
                     color: var(--vscode-foreground);
                     font-size: 11px;
                     outline: none;
-                    transition: border-color 0.15s;
+                    transition: border-color 0.15s, background 0.15s;
                     font-family: var(--vscode-font-family);
                 }
 
                 .fields-search-input:focus {
-                    border-bottom-color: #4EC9B0;
+                    border-color: var(--vscode-focusBorder);
+                    background: var(--vscode-input-background);
                 }
 
                 .fields-search-input::placeholder {
@@ -726,7 +1012,7 @@ export class StructParserPanel {
                 .fields-tree {
                     flex: 1;
                     overflow-y: auto;
-                    padding: 4px 0;
+                    padding: 2px 0;
                 }
 
                 .fields-tree::-webkit-scrollbar {
@@ -738,20 +1024,20 @@ export class StructParserPanel {
                     border-radius: 3px;
                 }
 
-                /* Tree Node */
+                /* ===== Tree Node ===== */
                 .tree-node {
                     user-select: none;
                 }
 
                 .tree-row {
                     display: grid;
-                    grid-template-columns: 1fr 120px 50px 50px 120px 100px;
-                    column-gap: 16px;
+                    grid-template-columns: 1fr 100px 48px 48px 100px 90px;
+                    column-gap: 12px;
                     align-items: center;
-                    padding: 5px 24px;
+                    padding: 4px 24px;
                     cursor: pointer;
                     transition: background 0.1s;
-                    border-left: 2px solid transparent;
+                    border-left: 3px solid transparent;
                 }
 
                 .tree-row:hover {
@@ -774,15 +1060,16 @@ export class StructParserPanel {
                 }
 
                 .tree-expand {
-                    width: 18px;
-                    height: 18px;
+                    width: 16px;
+                    height: 16px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    font-size: 12px;
+                    font-size: 10px;
                     color: var(--vscode-descriptionForeground);
                     transition: transform 0.15s;
                     flex-shrink: 0;
+                    opacity: 0.6;
                 }
 
                 .tree-expand.expanded {
@@ -793,54 +1080,36 @@ export class StructParserPanel {
                     visibility: hidden;
                 }
 
-                .tree-icon {
-                    width: 8px;
-                    height: 8px;
-                    border-radius: 50%;
+                .tree-color-bar {
+                    width: 3px;
+                    height: 16px;
+                    border-radius: 2px;
                     flex-shrink: 0;
-                    margin-left: 6px;
-                    margin-right: 10px;
+                    margin: 0 8px;
                 }
 
-                .tree-icon.struct { background: #4EC9B0; }
-                .tree-icon.union { background: #C586C0; }
-                .tree-icon.uint { background: #9CDCFE; }
-                .tree-icon.bool { background: #569CD6; }
-                .tree-icon.anon { background: #666; }
-
                 .tree-name {
-                    font-size: 14px;
+                    font-size: 13px;
                     color: var(--vscode-foreground);
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     flex: 1;
                     min-width: 0;
+                    font-weight: 500;
                 }
 
                 .tree-type {
-                    font-size: 13px;
-                    font-weight: 500;
-                    padding: 2px 10px;
-                    border-radius: 4px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    padding: 1px 8px;
+                    border-radius: 3px;
                     text-align: center;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
-                    position: relative;
-                }
-
-                .tree-type:hover {
-                    white-space: normal;
-                    overflow: visible;
-                    z-index: 10;
-                    background: var(--vscode-editor-background) !important;
-                    border: 1px solid var(--vscode-editor-border);
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-                    padding: 4px 10px;
-                    margin: -2px -10px;
-                    border-radius: 4px;
-                    max-width: 300px;
+                    font-family: var(--vscode-editor-font-family);
+                    letter-spacing: 0.3px;
                 }
 
                 .tree-type.struct {
@@ -870,7 +1139,7 @@ export class StructParserPanel {
                 }
 
                 .tree-offset {
-                    font-size: 13px;
+                    font-size: 12px;
                     color: var(--vscode-descriptionForeground);
                     font-family: var(--vscode-editor-font-family);
                     text-align: right;
@@ -878,7 +1147,7 @@ export class StructParserPanel {
                 }
 
                 .tree-bits {
-                    font-size: 13px;
+                    font-size: 12px;
                     color: var(--vscode-descriptionForeground);
                     font-family: var(--vscode-editor-font-family);
                     text-align: right;
@@ -887,35 +1156,22 @@ export class StructParserPanel {
 
                 .tree-value {
                     width: 100%;
-                    padding: 4px 10px;
+                    padding: 3px 8px;
                     background: var(--vscode-input-background);
                     border: 1px solid var(--vscode-input-border);
                     border-radius: 4px;
                     color: var(--vscode-foreground);
                     font-family: var(--vscode-editor-font-family);
-                    font-size: 13px;
+                    font-size: 12px;
                     font-weight: 500;
                     text-align: right;
                     outline: none;
-                    transition: border-color 0.15s;
+                    transition: border-color 0.15s, box-shadow 0.15s;
                     -moz-appearance: textfield;
                     appearance: textfield;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
-                }
-
-                .tree-value:hover {
-                    overflow: visible;
-                    white-space: normal;
-                    z-index: 10;
-                    position: relative;
-                    min-width: 100%;
-                    max-width: 300px;
-                    background: var(--vscode-editor-background);
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-                    padding: 6px 12px;
-                    margin: -2px -10px;
                 }
 
                 .tree-value::-webkit-outer-spin-button,
@@ -925,38 +1181,18 @@ export class StructParserPanel {
 
                 .tree-value:focus {
                     border-color: #4EC9B0;
+                    box-shadow: 0 0 0 1px rgba(78, 201, 176, 0.15);
                 }
 
                 .tree-hex {
                     font-family: var(--vscode-editor-font-family);
-                    font-size: 13px;
+                    font-size: 12px;
                     color: #75BEFF;
                     text-align: right;
                     font-weight: 500;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
-                    position: relative;
-                }
-
-                .tree-hex:hover {
-                    white-space: normal;
-                    overflow: visible;
-                    z-index: 10;
-                    background: var(--vscode-editor-background);
-                    border: 1px solid var(--vscode-editor-border);
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-                    padding: 4px 10px;
-                    margin: -4px -10px;
-                    border-radius: 4px;
-                    max-width: 300px;
-                    text-align: left;
-                }
-
-                .tree-spacer-value {
-                }
-
-                .tree-spacer-hex {
                 }
 
                 .tree-children {
@@ -975,12 +1211,13 @@ export class StructParserPanel {
                     display: none;
                 }
 
+                /* ===== Column Header ===== */
                 .tree-header {
                     display: grid;
-                    grid-template-columns: 1fr 120px 50px 50px 120px 100px;
-                    column-gap: 16px;
+                    grid-template-columns: 1fr 100px 48px 48px 100px 90px;
+                    column-gap: 12px;
                     align-items: center;
-                    padding: 6px 24px;
+                    padding: 5px 24px;
                     border-bottom: 1px solid var(--vscode-panel-border);
                     background: var(--vscode-panel-background);
                     position: sticky;
@@ -999,7 +1236,7 @@ export class StructParserPanel {
                 .tree-header .tree-offset,
                 .tree-header .tree-bits,
                 .tree-header .tree-hex {
-                    font-size: 11px;
+                    font-size: 10px;
                     font-weight: 600;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
@@ -1007,10 +1244,6 @@ export class StructParserPanel {
                 }
 
                 .tree-header .tree-hex {
-                    text-align: right;
-                }
-
-                .tree-header .tree-hex:nth-child(5) {
                     text-align: right;
                 }
 
@@ -1024,29 +1257,52 @@ export class StructParserPanel {
                     text-align: right;
                 }
 
-                .tree-header .tree-spacer-value,
-                .tree-header .tree-spacer-hex {
-                    text-align: right;
+                .tree-header .tree-color-bar {
+                    background: none !important;
                 }
 
-                .tree-header .tree-icon {
-                    background: none;
+                /* ===== No Results ===== */
+                .no-results {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 40px 24px;
+                    text-align: center;
+                    flex: 1;
                 }
 
-                /* Animations */
+                .no-results-icon {
+                    font-size: 32px;
+                    opacity: 0.3;
+                    margin-bottom: 8px;
+                }
+
+                .no-results-text {
+                    font-size: 12px;
+                    color: var(--vscode-descriptionForeground);
+                }
+
+                /* ===== Animations ===== */
                 @keyframes fadeIn {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
+                    from { opacity: 0; transform: translateY(4px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
 
-                .tree-node { animation: fadeIn 0.15s ease; }
+                @keyframes slideIn {
+                    from { opacity: 0; max-height: 0; }
+                    to { opacity: 1; max-height: 200px; }
+                }
+
+                .tree-node { animation: fadeIn 0.2s ease; }
+                .bitvis-field-block { animation: fadeIn 0.3s ease; }
             </style>
         </head>
         <body>
             <div class="main">
                 <!-- Empty State -->
                 <div class="empty-state" id="emptyState" style="display: ${hasStruct ? 'none' : 'flex'}">
-                    <div class="empty-icon">\u26A1</div>
+                    <div class="empty-icon">⚡</div>
                     <div class="empty-title">No Struct Selected</div>
                     <div class="empty-text">Select a struct from the sidebar to view and edit its binary fields</div>
                     <div class="empty-steps">
@@ -1070,12 +1326,21 @@ export class StructParserPanel {
                     <!-- Top Bar -->
                     <div class="main-topbar">
                         <div class="topbar-left">
-                            <div class="topbar-struct-icon">\u26A1</div>
+                            <div class="topbar-struct-icon">⚡</div>
                             <div class="topbar-info">
                                 <h2 id="structName">${structName} <span class="type-badge ${isUnion ? 'union' : 'struct'}">${isUnion ? 'union' : 'struct'}</span></h2>
                                 <p id="structMeta">${structBits} bits · ${structBytes} bytes</p>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Bit Visualization Grid (32-bit rows) -->
+                    <div class="bitvis-section" id="bitvisSection" style="display:none">
+                        <div class="bitvis-header">
+                            <span class="bitvis-title">Bit Layout</span>
+                            <div class="bitvis-legend" id="bitvisLegend"></div>
+                        </div>
+                        <div id="bitvisRows"></div>
                     </div>
 
                     <!-- Hex Input -->
@@ -1087,30 +1352,37 @@ export class StructParserPanel {
                             </div>
                             <button class="hex-apply-btn" id="btnParse">Parse</button>
                         </div>
+                        <div class="hex-info" id="hexInfo">
+                            <span><span class="label">Type: </span><span class="value" id="hexInfoType">${isUnion ? 'union' : 'struct'}</span></span>
+                            <span><span class="label">Size: </span><span class="value" id="hexInfoSize">${structBits} bits</span></span>
+                            <span id="adjustBadge" style="display:none"><span class="adjust-badge">Auto-adjusted</span></span>
+                        </div>
                     </div>
 
                     <!-- Fields Header -->
                     <div class="fields-header">
                         <div class="fields-title">
-                            <span>Parsed Fields</span>
+                            <span>Fields</span>
                             <span class="fields-count" id="fieldsCount">0</span>
                         </div>
-                        <div class="fields-search">
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z"/></svg>
-                            <input type="text" class="fields-search-input" id="fieldsSearchInput" placeholder="Filter fields...">
+                        <div class="fields-header-right">
+                            <div class="fields-search">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z"/></svg>
+                                <input type="text" class="fields-search-input" id="fieldsSearchInput" placeholder="Filter...">
+                            </div>
+                            <button class="collapse-toggle-btn" id="collapseToggleBtn" title="Collapse All">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h4v4H3V3zm0 6h4v4H3V9zm6-6h4v4H9V3zm0 6h4v4H9V9z" opacity="0.3"/><path d="M1.5 1h13a.5.5 0 0 1 0 1h-13a.5.5 0 0 1 0-1zm0 13h13a.5.5 0 0 1 0 1h-13a.5.5 0 0 1 0-1z"/></svg>
+                                <span id="collapseToggleLabel">Collapse All</span>
+                            </button>
                         </div>
-                        <button class="collapse-toggle-btn" id="collapseToggleBtn" title="Collapse All">
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h4v4H3V3zm0 6h4v4H3V9zm6-6h4v4H9V3zm0 6h4v4H9V9z" opacity="0.3"/><path d="M1.5 1h13a.5.5 0 0 1 0 1h-13a.5.5 0 0 1 0-1zm0 13h13a.5.5 0 0 1 0 1h-13a.5.5 0 0 1 0-1z"/></svg>
-                            <span id="collapseToggleLabel">Collapse All</span>
-                        </button>
                     </div>
 
                     <!-- Column Header -->
                     <div class="tree-header">
                         <div class="tree-name-group">
                             <span class="tree-indent"></span>
-                            <span class="tree-expand leaf">\u25B6</span>
-                            <span class="tree-icon"></span>
+                            <span class="tree-expand leaf">▶</span>
+                            <span class="tree-color-bar"></span>
                             <span class="tree-name">Name</span>
                         </div>
                         <span class="tree-type">Type</span>
@@ -1131,6 +1403,25 @@ export class StructParserPanel {
                 let currentFields = ${initialFieldsJson};
                 let hideZero = false;
                 let allCollapsed = false;
+
+                const ROW_BITS = 32;
+
+                // Add hashCode method to String prototype for consistent coloring
+                String.prototype.hashCode = function() {
+                    let hash = 0;
+                    for (let i = 0; i < this.length; i++) {
+                        const char = this.charCodeAt(i);
+                        hash = ((hash << 5) - hash) + char;
+                        hash = hash & hash;
+                    }
+                    return Math.abs(hash);
+                };
+
+                const FIELD_COLORS = [
+                    '#4EC9B0', '#569CD6', '#C586C0', '#DCDCAA',
+                    '#CE9178', '#6A9955', '#D16969', '#B5CEA8',
+                    '#F44747', '#9CDCFE'
+                ];
 
                 document.getElementById('btnParse')?.addEventListener('click', parseValue);
                 document.getElementById('hexInput')?.addEventListener('keypress', (e) => {
@@ -1207,7 +1498,6 @@ export class StructParserPanel {
                                 parent = parent.parentElement?.closest('.tree-node');
                             }
                         } else {
-                            const hasMatchingChild = node.querySelector('.tree-node.search-hidden, .tree-node:not(.search-hidden)');
                             const childMatches = [...(node.querySelectorAll('.tree-node') || [])].some(child => {
                                 const childName = child.querySelector(':scope > .tree-row .tree-name')?.textContent?.toLowerCase() || '';
                                 return childName.includes(term);
@@ -1230,6 +1520,12 @@ export class StructParserPanel {
 
                 if (currentFields.length > 0) {
                     renderFieldsTree(currentFields);
+                    const totalBits = ${structBits} || currentFields.reduce((sum, f) => sum + f.bits, 0);
+                    renderBitVis(currentFields, totalBits);
+                    const ctPanel = document.getElementById('contentPanel');
+                    const emState = document.getElementById('emptyState');
+                    if (ctPanel) ctPanel.style.display = 'flex';
+                    if (emState) emState.style.display = 'none';
                 }
 
                 function parseValue() {
@@ -1262,11 +1558,9 @@ export class StructParserPanel {
                         const fieldPath = JSON.parse(e.target.getAttribute('data-path') || '[]');
                         const bits = parseInt(e.target.getAttribute('data-bits'));
                         const raw = e.target.value.trim();
-                        
-                        // 计算最大值（使用 BigInt 避免溢出）
+
                         const maxVal = (BigInt(1) << BigInt(bits)) - BigInt(1);
-                        
-                        // 解析值（支持十进制和十六进制）
+
                         let newValueBigInt;
                         if (raw.startsWith('0x') || raw.startsWith('0X')) {
                             try {
@@ -1283,14 +1577,13 @@ export class StructParserPanel {
                             }
                             newValueBigInt = BigInt(num);
                         }
-                        
+
                         if (newValueBigInt < 0n || newValueBigInt > maxVal) {
                             vscode.postMessage({ command: 'alert', text: 'Value out of range (0-' + maxVal.toString() + ')' });
                             e.target.value = e.target.getAttribute('data-orig') || '0';
                             return;
                         }
-                        
-                        // 发送字符串形式的值，避免精度丢失
+
                         vscode.postMessage({ command: 'updateField', fieldPath, newValue: newValueBigInt.toString() });
                     }
                 }
@@ -1316,6 +1609,10 @@ export class StructParserPanel {
                             hideZero = message.hideZero;
                             applyHideZero();
                             break;
+                        case 'setBitVisVisible':
+                            const bvSection = document.getElementById('bitvisSection');
+                            if (bvSection) bvSection.style.display = message.visible ? 'block' : 'none';
+                            break;
                     }
                 });
 
@@ -1335,28 +1632,401 @@ export class StructParserPanel {
                 function updateFieldsCount() {
                     const countEl = document.getElementById('fieldsCount');
                     if (countEl) {
-                        const visible = document.querySelectorAll('.tree-node[data-value]:not(.zero-hidden)').length;
-                        countEl.textContent = visible;
+                        const total = document.querySelectorAll('.tree-node[data-value]').length;
+                        const visible = document.querySelectorAll('.tree-node[data-value]:not(.zero-hidden):not(.search-hidden)').length;
+                        countEl.textContent = visible < total ? visible + '/' + total : total;
                     }
                 }
 
+                function getFieldColor(fieldType, index) {
+                    const colors = {
+                        'struct': '#4EC9B0',
+                        'union': '#C586C0',
+                        'bool': '#569CD6',
+                        'uint': '#9CDCFE',
+                        'reserved': '#6A9955',
+                        'padding': '#6A9955'
+                    };
+                    return colors[fieldType.toLowerCase()] || FIELD_COLORS[index % FIELD_COLORS.length];
+                }
+
+                // ===== Bit Visualization Grid (32-bit rows, per-bit scan) =====
+
+                // Extract all leaf fields from nested structure, preserving the original order
+                function collectLeafFields(fields) {
+                    const result = [];
+                    function walk(list) {
+                        list.forEach(f => {
+                            if (f.fields && f.fields.length > 0) {
+                                if (f.type === 'struct' || f.type === 'union') {
+                                    result.push({
+                                        name: f.name,
+                                        type: f.type,
+                                        bits: f.bits,
+                                        offset: f.offset
+                                    });
+                                }
+                                walk(f.fields);
+                            } else {
+                                result.push({
+                                    name: f.name,
+                                    type: f.type,
+                                    bits: f.bits,
+                                    offset: f.offset
+                                });
+                            }
+                        });
+                    }
+                    walk(fields);
+                    return result;
+                }
+                
+                // Group sibling fields that have overlapping bit ranges (union detection)
+                function groupByOverlap(fieldList) {
+                    const groups = [];
+                    for (const f of fieldList) {
+                        let placed = false;
+                        for (const group of groups) {
+                            if (group.some(g => f.offset < g.offset + g.bits && f.offset + f.bits > g.offset)) {
+                                group.push(f);
+                                placed = true;
+                                break;
+                            }
+                        }
+                        if (!placed) groups.push([f]);
+                    }
+                    return groups;
+                }
+                
+                // Collect field lanes: overlapping siblings (union members) are assigned to
+                // separate lanes. Each lane is rendered as an independent horizontal sub-row
+                // with its own block-splitting logic, so union members never affect each other.
+                function collectLanes(fields) {
+                    const lanes = [[]];
+                    function ensureLane(idx) {
+                        while (lanes.length <= idx) lanes.push([]);
+                    }
+                    function walkGroup(fieldList, baseLane) {
+                        const overlapGroups = groupByOverlap(fieldList);
+                        overlapGroups.forEach(group => {
+                            if (group.length === 1) {
+                                const f = group[0];
+                                if (f.type === 'struct' || f.type === 'union') {
+                                    ensureLane(baseLane);
+                                    lanes[baseLane].push({ name: f.name, type: f.type, bits: f.bits, offset: f.offset });
+                                    if (f.fields && f.fields.length > 0) walkGroup(f.fields, baseLane);
+                                } else if (f.fields && f.fields.length > 0) {
+                                    walkGroup(f.fields, baseLane);
+                                } else {
+                                    ensureLane(baseLane);
+                                    lanes[baseLane].push({ name: f.name, type: f.type, bits: f.bits, offset: f.offset });
+                                }
+                            } else {
+                                // Union members: Nth member → lane (baseLane + N)
+                                group.forEach((f, fi) => {
+                                    const targetLane = baseLane + fi;
+                                    ensureLane(targetLane);
+                                    if (f.type === 'struct' || f.type === 'union') {
+                                        lanes[targetLane].push({ name: f.name, type: f.type, bits: f.bits, offset: f.offset });
+                                        if (f.fields && f.fields.length > 0) walkGroup(f.fields, targetLane);
+                                    } else if (f.fields && f.fields.length > 0) {
+                                        walkGroup(f.fields, targetLane);
+                                    } else {
+                                        lanes[targetLane].push({ name: f.name, type: f.type, bits: f.bits, offset: f.offset });
+                                    }
+                                });
+                            }
+                        });
+                    }
+                    walkGroup(fields, 0);
+                    return lanes.filter(l => l.length > 0);
+                }
+                
+                function renderBitVis(fields, totalBits) {
+                    const section = document.getElementById('bitvisSection');
+                    const rowsContainer = document.getElementById('bitvisRows');
+                    const legend = document.getElementById('bitvisLegend');
+                    if (!section || !rowsContainer) return;
+                
+                    section.style.display = 'block';
+                    rowsContainer.innerHTML = '';
+                    legend.innerHTML = '';
+                
+                    if (!fields || fields.length === 0 || totalBits <= 0) return;
+                
+                    // Collect independent rendering lanes (each lane = one union member's fields)
+                    const fieldLanes = collectLanes(fields);
+                    if (fieldLanes.length === 0) return;
+                
+                    // Build legend (deduplicated across all lanes)
+                    const allLeafFields = fieldLanes.flat();
+                    const seenColors = new Set();
+                    allLeafFields.forEach((f, fi) => {
+                        const color = getFieldColor(f.type, fi);
+                        if (!seenColors.has(color)) {
+                            seenColors.add(color);
+                            const item = document.createElement('span');
+                            item.className = 'bitvis-legend-item';
+                            item.innerHTML = '<span class="bitvis-legend-dot" style="background:' + color + '"></span>' + f.type;
+                            legend.appendChild(item);
+                        }
+                    });
+                
+                    // Build a value lookup from currentFields
+                    const valueByPath = {};
+                    function indexValues(arr, prefix) {
+                        if (!arr) return;
+                        arr.forEach(f => {
+                            const key = prefix ? prefix + '.' + f.name : f.name;
+                            valueByPath[key] = { value: f.value, hex: f.hex };
+                            if (f.fields) indexValues(f.fields, key);
+                        });
+                    }
+                    indexValues(fields, '');
+                
+                    // Add header row with bit labels
+                    const headerRow = document.createElement('div');
+                    headerRow.className = 'bitvis-row';
+                    headerRow.style.height = '24px';
+                
+                    const headerHeader = document.createElement('div');
+                    headerHeader.className = 'bitvis-row-header';
+                    headerHeader.textContent = '';
+                    headerRow.appendChild(headerHeader);
+                
+                    const headerBody = document.createElement('div');
+                    headerBody.className = 'bitvis-row-body';
+                
+                    const bitsRow = document.createElement('div');
+                    bitsRow.className = 'bitvis-bits';
+                    bitsRow.style.height = '100%';
+                    const bitLabelStep = findLabelStep(ROW_BITS);
+                    for (let b = 0; b < ROW_BITS; b += bitLabelStep) {
+                        const label = document.createElement('div');
+                        label.className = 'bitvis-bit-label';
+                        label.style.left = (b / ROW_BITS * 100) + '%';
+                        label.textContent = b;
+                        bitsRow.appendChild(label);
+                    }
+                    headerBody.appendChild(bitsRow);
+                    headerRow.appendChild(headerBody);
+                    rowsContainer.appendChild(headerRow);
+                
+                    const LANE_HEIGHT = 40;
+                    const numRows = Math.ceil(totalBits / ROW_BITS);
+                
+                    for (let ri = 0; ri < numRows; ri++) {
+                        const rowStart = ri * ROW_BITS;
+                        const rowEnd = Math.min(rowStart + ROW_BITS, totalBits);
+                
+                        // For each lane, independently build posBitmap and compute blocks.
+                        // This ensures each union member's row is split only by its own fields.
+                        const laneBlocksList = fieldLanes.map(laneFields => {
+                            const posBitmap = [];
+                            for (let p = 0; p < ROW_BITS; p++) posBitmap.push([]);
+                
+                            laneFields.forEach((f, fi) => {
+                                const overlapStart = Math.max(f.offset, rowStart);
+                                const overlapEnd = Math.min(f.offset + f.bits, rowEnd);
+                                for (let b = overlapStart; b < overlapEnd; b++) {
+                                    const localPos = b - rowStart;
+                                    if (localPos >= 0 && localPos < ROW_BITS) {
+                                        posBitmap[localPos].push({ fi, field: f });
+                                    }
+                                }
+                            });
+                
+                            const blocks = [];
+                            let bp = 0;
+                            while (bp < ROW_BITS) {
+                                const entry = posBitmap[bp];
+                                if (entry.length === 0) { bp++; continue; }
+                
+                                const currentIndices = entry.map(e => e.fi).sort();
+                                const blockStart = bp;
+                                bp++;
+                
+                                while (bp < ROW_BITS) {
+                                    const nextEntry = posBitmap[bp];
+                                    if (nextEntry.length === 0) break;
+                                    const nextIndices = nextEntry.map(e => e.fi).sort();
+                                    if (nextIndices.length !== currentIndices.length) break;
+                                    const same = currentIndices.every((v, i) => v === nextIndices[i]);
+                                    if (!same) break;
+                                    bp++;
+                                }
+                
+                                blocks.push({
+                                    start: blockStart,
+                                    end: bp,
+                                    fieldIndices: currentIndices,
+                                    fields: entry.map(e => e.field)
+                                });
+                            }
+                            return blocks;
+                        });
+                
+                        // Only include lanes that have blocks in this row
+                        const activeLanes = laneBlocksList
+                            .map((blocks, laneIdx) => ({ blocks, laneIdx }))
+                            .filter(({ blocks }) => blocks.length > 0);
+                
+                        if (activeLanes.length === 0) continue;
+                
+                        const hasMultipleLanes = activeLanes.length > 1;
+                
+                        const row = document.createElement('div');
+                        row.className = 'bitvis-row' + (hasMultipleLanes ? ' has-union' : '');
+                        row.style.height = (activeLanes.length * LANE_HEIGHT) + 'px';
+                        row.dataset.rowStart = rowStart;
+                        row.dataset.rowEnd = rowEnd;
+                
+                        const header = document.createElement('div');
+                        header.className = 'bitvis-row-header';
+                        header.textContent = ri;
+                        row.appendChild(header);
+                
+                        const body = document.createElement('div');
+                        body.className = 'bitvis-row-body';
+                
+                        // Render each active lane as an independent sub-row
+                        activeLanes.forEach(({ blocks, laneIdx }, activeLanePos) => {
+                            const laneEl = document.createElement('div');
+                            laneEl.className = 'bitvis-lane' + (activeLanePos > 0 ? ' union-lane' : '');
+                
+                            const fieldArea = document.createElement('div');
+                            fieldArea.className = 'bitvis-field-area';
+                
+                            blocks.forEach(block => {
+                                const leftPct = (block.start / ROW_BITS) * 100;
+                                const widthPct = ((block.end - block.start) / ROW_BITS) * 100;
+                
+                                const fi = block.fieldIndices[0];
+                                const f = fieldLanes[laneIdx][fi];
+                                const color = getFieldColor(f.type, f.name.hashCode());
+                
+                                const vInfo = valueByPath[f.name] || {};
+                                const vStr = vInfo.value !== undefined ? ', value=' + vInfo.value + ' (' + (vInfo.hex||'') + ')' : '';
+                
+                                const bEl = document.createElement('div');
+                                bEl.className = 'bitvis-field-block' + (activeLanePos > 0 ? ' union-variant' : '');
+                                bEl.style.left = leftPct + '%';
+                                bEl.style.width = widthPct + '%';
+                                bEl.style.background = 'linear-gradient(135deg, ' + color + ', ' + color + 'cc)';
+                                bEl.style.height = '100%';
+                                bEl.style.top = '0';
+                                bEl.title = f.name + ' (' + f.type + ', ' + f.bits + ' bits @ ' + f.offset + vStr + ')';
+                                bEl.dataset.fieldName = f.name;
+                
+                                if (widthPct > 1) {
+                                    const labelContainer = document.createElement('div');
+                                    labelContainer.style.display = 'flex';
+                                    labelContainer.style.flexDirection = 'column';
+                                    labelContainer.style.alignItems = 'center';
+                                    labelContainer.style.justifyContent = 'center';
+                                    labelContainer.style.padding = '1px';
+                
+                                    const lbl = document.createElement('span');
+                                    lbl.className = 'bitvis-field-block-label';
+                                    lbl.textContent = f.name;
+                                    lbl.style.fontSize = widthPct > 8 ? '12px' : widthPct > 4 ? '10px' : '8px';
+                                    lbl.style.whiteSpace = 'normal';
+                                    lbl.style.textAlign = 'center';
+                                    lbl.style.lineHeight = '1.2';
+                                    labelContainer.appendChild(lbl);
+                                    bEl.appendChild(labelContainer);
+                                }
+                
+                                bEl.addEventListener('click', () => scrollToField(f.name));
+                                fieldArea.appendChild(bEl);
+                            });
+                
+                            laneEl.appendChild(fieldArea);
+                            body.appendChild(laneEl);
+                        });
+                
+                        if (hasMultipleLanes) {
+                            const unLabel = document.createElement('div');
+                            unLabel.className = 'bitvis-union-indicator';
+                            unLabel.textContent = 'U';
+                            body.appendChild(unLabel);
+                        }
+                
+                        row.appendChild(body);
+                        rowsContainer.appendChild(row);
+                    }
+                }
+
+                function findLabelStep(bits) {
+                    if (bits <= 8) return 1;
+                    if (bits <= 16) return 2;
+                    if (bits <= 32) return 4;
+                    return 8;
+                }
+
+                function scrollToField(fieldName) {
+                    const nodes = document.querySelectorAll('.tree-node');
+                    for (const node of nodes) {
+                        const nameEl = node.querySelector(':scope > .tree-row .tree-name');
+                        if (nameEl && nameEl.textContent === fieldName) {
+                            // Expand all ancestors
+                            let parent = node.parentElement?.closest('.tree-node');
+                            while (parent) {
+                                const expand = parent.querySelector(':scope > .tree-row .tree-expand:not(.leaf)');
+                                const children = parent.querySelector(':scope > .tree-children');
+                                if (expand && children) {
+                                    expand.classList.add('expanded');
+                                    children.classList.remove('collapsed');
+                                }
+                                parent = parent.parentElement?.closest('.tree-node');
+                            }
+                            node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            node.querySelector(':scope > .tree-row')?.classList.add('selected');
+                            setTimeout(() => {
+                                node.querySelector(':scope > .tree-row')?.classList.remove('selected');
+                            }, 1500);
+                            break;
+                        }
+                    }
+                }
+
+                // ===== Display Results =====
                 function displayResults(data) {
                     currentFields = data.fields;
                     if (data.error) {
                         vscode.postMessage({ command: 'alert', text: data.error });
                         return;
                     }
+                    const totalBits = data.struct?.bits || currentFields.reduce((sum, f) => sum + f.bits, 0);
                     renderFieldsTree(data.fields);
+                    renderBitVis(data.fields, totalBits);
                     expandAll();
                     document.getElementById('contentPanel').style.display = 'flex';
                     document.getElementById('emptyState').style.display = 'none';
+
+                    const badge = document.getElementById('adjustBadge');
+                    if (badge) {
+                        badge.style.display = data.adjustedValue ? 'inline' : 'none';
+                    }
                 }
 
+                // ===== Field Tree Renderer =====
                 function renderFieldsTree(fields) {
                     const tree = document.getElementById('fieldsTree');
                     if (!tree) return;
 
+                    if (!fields || fields.length === 0) {
+                        tree.innerHTML = \`
+                            <div class="no-results">
+                                <div class="no-results-icon">🔍</div>
+                                <div class="no-results-text">No fields to display</div>
+                            </div>
+                        \`;
+                        return;
+                    }
+
                     let html = '';
+                    let fieldIndex = { value: 0 };
 
                     function renderNode(field, depth = 0, parentPath = []) {
                         const hasChildren = field.fields && field.fields.length > 0;
@@ -1364,18 +2034,18 @@ export class StructParserPanel {
                         const typeClass = field.type === 'struct' ? 'struct' :
                                         field.type === 'union' ? 'union' :
                                         field.type === 'bool' ? 'bool' : 'uint';
-                        const iconClass = hasChildren ? (field.type === 'struct' ? 'struct' : field.type === 'union' ? 'union' : 'anon') : typeClass;
                         const typeLabel = field.type || 'anon';
-                        const maxVal = field.bits >= 32 ? 4294967295 : (1 << field.bits) - 1;
                         const pathJson = JSON.stringify(fieldPath).replace(/"/g, '&quot;');
+                        const idx = fieldIndex.value++;
+                        const color = getFieldColor(field.type, idx);
 
                         html += \`
-                            <div class="tree-node" data-value="\${field.value}">
+                            <div class="tree-node" data-value="\${field.value}" data-field-idx="\${idx}">
                                 <div class="tree-row">
                                     <div class="tree-name-group">
                                         <span class="tree-indent" style="padding-left: \${depth * 20}px"></span>
-                                        <span class="tree-expand \${hasChildren ? '' : 'leaf'}">\u25B6</span>
-                                        <span class="tree-icon \${iconClass}"></span>
+                                        <span class="tree-expand \${hasChildren ? '' : 'leaf'}">▶</span>
+                                        <span class="tree-color-bar" style="background:\${color}"></span>
                                         <span class="tree-name">\${field.name}</span>
                                     </div>
                                     <span class="tree-type \${typeClass}">\${typeLabel}</span>
@@ -1385,12 +2055,12 @@ export class StructParserPanel {
 
                         if (!hasChildren) {
                             html += \`
-                                    <input type="text" class="tree-value" value="\${field.value}" data-path="\${pathJson}" data-bits="\${field.bits}" data-orig="\${field.value}" title="max: \${maxVal} (\${field.bits}bits)">
+                                    <input type="text" class="tree-value" value="\${field.value}" data-path="\${pathJson}" data-bits="\${field.bits}" data-orig="\${field.value}">
                                     <span class="tree-hex">\${field.hex}</span>
                             \`;
                         } else {
                             html += \`
-                                    <input type="text" class="tree-value" value="\${field.value}" data-path="\${pathJson}" data-bits="\${field.bits}" data-orig="\${field.value}" title="max: \${maxVal} (\${field.bits}bits)">
+                                    <input type="text" class="tree-value" value="\${field.value}" data-path="\${pathJson}" data-bits="\${field.bits}" data-orig="\${field.value}">
                                     <span class="tree-hex">\${field.hex}</span>
                             \`;
                         }

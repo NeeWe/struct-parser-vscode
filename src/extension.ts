@@ -59,6 +59,15 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // Broadcast global bitvis toggle to all open panels
+    context.subscriptions.push(
+        structSelectorProvider.onBitVisChanged((visible) => {
+            StructParserPanel.panels.forEach(panel => {
+                panel.setBitVisVisible(visible);
+            });
+        })
+    );
+
     context.subscriptions.push(
         openViewerCommand, 
         parseFromHexCommand, 

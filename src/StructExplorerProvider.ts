@@ -27,16 +27,23 @@ class StructTreeItem extends vscode.TreeItem {
         public readonly label: string,
         public readonly structType: 'struct' | 'union' | 'category',
         public readonly sizeBits?: number,
+        public readonly fieldCount?: number,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.None
     ) {
         super(label, collapsibleState);
         
         if (structType === 'category') {
             this.iconPath = new vscode.ThemeIcon('folder');
+            this.description = '';
         } else if (structType === 'struct') {
             this.iconPath = new vscode.ThemeIcon('symbol-structure');
-            this.tooltip = `Struct ${label} (${sizeBits} bits)`;
-            this.description = `${sizeBits} bits`;
+            const bytes = Math.ceil((sizeBits || 0) / 8);
+            this.tooltip = new vscode.MarkdownString(
+                `**Struct** \`${label}\`\n\n` +
+                `- Size: **${sizeBits} bits** (${bytes} bytes)\n` +
+                `- Fields: **${fieldCount || 0}**`
+            );
+            this.description = `${sizeBits}b · ${fieldCount || 0} fields`;
             this.command = {
                 command: 'structParser.openViewerWithStruct',
                 title: 'Open with Struct',
@@ -44,8 +51,13 @@ class StructTreeItem extends vscode.TreeItem {
             };
         } else {
             this.iconPath = new vscode.ThemeIcon('symbol-enum');
-            this.tooltip = `Union ${label} (${sizeBits} bits)`;
-            this.description = `${sizeBits} bits`;
+            const bytes = Math.ceil((sizeBits || 0) / 8);
+            this.tooltip = new vscode.MarkdownString(
+                `**Union** \`${label}\`\n\n` +
+                `- Size: **${sizeBits} bits** (${bytes} bytes)\n` +
+                `- Fields: **${fieldCount || 0}**`
+            );
+            this.description = `${sizeBits}b · ${fieldCount || 0} fields`;
             this.command = {
                 command: 'structParser.openViewerWithStruct',
                 title: 'Open with Struct',
@@ -145,7 +157,8 @@ export class StructExplorerProvider implements vscode.TreeDataProvider<StructTre
                 this._structData.structs.map(struct => new StructTreeItem(
                     struct.type,
                     'struct',
-                    struct.bits
+                    struct.bits,
+                    struct.fields ? struct.fields.length : 0
                 ))
             );
         } else if (element.label === 'Unions') {
@@ -153,7 +166,8 @@ export class StructExplorerProvider implements vscode.TreeDataProvider<StructTre
                 this._structData.unions.map(union => new StructTreeItem(
                     union.type,
                     'union',
-                    union.bits
+                    union.bits,
+                    union.fields ? union.fields.length : 0
                 ))
             );
         }
