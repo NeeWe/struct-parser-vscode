@@ -707,6 +707,13 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     border-color: rgba(78, 201, 176, 0.3);
                 }
 
+                .toolbar-btn svg {
+                    width: 13px;
+                    height: 13px;
+                    flex-shrink: 0;
+                    opacity: 0.85;
+                }
+
                 .config-select {
                     padding: 4px 8px;
                     font-size: 11px;
@@ -879,9 +886,11 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 }
 
                 .empty-icon {
-                    font-size: 36px;
                     margin-bottom: 12px;
                     opacity: 0.4;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
 
                 .empty-title {
@@ -958,13 +967,16 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
                 <div class="sidebar-toolbar">
                     <button class="toolbar-btn" id="hideZeroBtn" title="Hide zero-value fields">
-                        <span>👁</span> Hide Zero
+                        <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z'/><circle cx='12' cy='12' r='3'/></svg>
+                        Hide Zero
                     </button>
                     <button class="toolbar-btn active" id="bitvisBtn" title="Toggle bit visualization">
-                        <span>📊</span> BitView
+                        <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='2' y='3' width='20' height='7' rx='1.5'/><line x1='8' y1='3' x2='8' y2='10'/><line x1='16' y1='3' x2='16' y2='10'/><rect x='2' y='13' width='20' height='8' rx='1.5'/><line x1='11' y1='13' x2='11' y2='21'/><line x1='18' y1='13' x2='18' y2='21'/></svg>
+                        BitView
                     </button>
                     <button class="toolbar-btn" id="importBtn" title="Import struct data">
-                        <span>📥</span> Import
+                        <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3v13'/><path d='M7 11l5 5 5-5'/><path d='M3 21h18'/></svg>
+                        Import
                     </button>
                     <select class="config-select" id="structSetSelect" title="Switch between cached struct sets" style="max-width: 160px;">
                         <option value="">Select set...</option>
@@ -973,7 +985,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                         `).join('')}
                     </select>
                     <button class="toolbar-btn" id="clearCacheBtn" title="Clear all cached struct sets" style="flex:0; padding: 4px 8px;">
-                        <span>🗑</span>
+                        <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3,6 21,6'/><path d='M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2'/><path d='M5 6l1.5 14.5a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5L19 6'/><line x1='9' y1='11' x2='9' y2='17'/><line x1='15' y1='11' x2='15' y2='17'/></svg>
                     </button>
                 </div>
 
@@ -989,7 +1001,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                         </div>
                     `).join('') : `
                         <div class="empty-state">
-                            <div class="empty-icon">📂</div>
+                            <div class="empty-icon"><svg width='38' height='38' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'><rect x='2' y='3' width='20' height='18' rx='2'/><line x1='2' y1='9' x2='22' y2='9'/><line x1='2' y1='15' x2='22' y2='15'/><line x1='7' y1='3' x2='7' y2='9'/><path d='M12 12v5'/><path d='M9.5 15l2.5 2 2.5-2'/></svg></div>
                             <div class="empty-title">No Structs Found</div>
                             <div class="empty-text">Import a JSON file to get started</div>
                         </div>
@@ -1144,7 +1156,7 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     if (total === 0) {
                         list.innerHTML = \`
                             <div class="empty-state">
-                                <div class="empty-icon">🔍</div>
+                                <div class="empty-icon"><svg width='38' height='38' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><line x1='17' y1='17' x2='22' y2='22'/><line x1='8' y1='11' x2='14' y2='11'/></svg></div>
                                 <div class="empty-title">No Results</div>
                                 <div class="empty-text">Try a different search term</div>
                             </div>

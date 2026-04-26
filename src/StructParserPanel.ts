@@ -487,9 +487,11 @@ export class StructParserPanel {
                 }
 
                 .empty-icon {
-                    font-size: 48px;
                     margin-bottom: 16px;
                     opacity: 0.4;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
 
                 .empty-title {
@@ -579,7 +581,7 @@ export class StructParserPanel {
                     justify-content: center;
                     background: rgba(78, 201, 176, 0.12);
                     border-radius: 8px;
-                    font-size: 18px;
+                    transition: background 0.2s;
                 }
 
                 .topbar-info h2 {
@@ -1345,7 +1347,7 @@ export class StructParserPanel {
             <div class="main">
                 <!-- Empty State: 始终显示，由 showStruct 消息切换 -->
                 <div class="empty-state" id="emptyState" style="display: flex">
-                    <div class="empty-icon">⚡</div>
+                    <div class="empty-icon"><svg width='52' height='52' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'><rect x='2' y='3' width='20' height='18' rx='2'/><line x1='2' y1='9' x2='22' y2='9'/><line x1='2' y1='15' x2='22' y2='15'/><line x1='8' y1='9' x2='8' y2='21'/><line x1='15' y1='3' x2='15' y2='9'/></svg></div>
                     <div class="empty-title">No Struct Selected</div>
                     <div class="empty-text">Select a struct from the sidebar to view and edit its binary fields</div>
                     <div class="empty-steps">
@@ -1369,7 +1371,9 @@ export class StructParserPanel {
                     <!-- Top Bar -->
                     <div class="main-topbar">
                         <div class="topbar-left">
-                            <div class="topbar-struct-icon">⚡</div>
+                            <div class="topbar-struct-icon" id="topbarStructIcon">
+                                <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><rect x='2' y='3' width='20' height='18' rx='2'/><line x1='2' y1='9' x2='22' y2='9'/><line x1='2' y1='15' x2='22' y2='15'/><line x1='8' y1='9' x2='8' y2='21'/></svg>
+                            </div>
                             <div class="topbar-info">
                                 <h2 id="structName"></h2>
                                 <p id="structMeta"></p>
@@ -1447,6 +1451,10 @@ export class StructParserPanel {
                 let hideZero = false;
                 let bitVisEnabled = true;
                 let currentStructBits = 0;
+
+                // Topbar icon SVGs for struct vs union
+                const STRUCT_ICON = "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><rect x='2' y='3' width='20' height='18' rx='2'/><line x1='2' y1='9' x2='22' y2='9'/><line x1='2' y1='15' x2='22' y2='15'/><line x1='8' y1='9' x2='8' y2='21'/></svg>";
+                const UNION_ICON  = "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><rect x='2' y='3' width='20' height='18' rx='2'/><line x1='2' y1='9' x2='22' y2='9'/><line x1='2' y1='15' x2='22' y2='15'/><line x1='12' y1='9' x2='12' y2='21'/></svg>";
                 let allCollapsed = false;
 
                 const ROW_BITS = 32;
@@ -1641,6 +1649,11 @@ export class StructParserPanel {
                                 document.getElementById('emptyState').style.display = 'none';
                                 document.getElementById('contentPanel').style.display = 'flex';
                                 const iu = message.isUnion;
+                                const topbarIcon = document.getElementById('topbarStructIcon');
+                                if (topbarIcon) {
+                                    topbarIcon.innerHTML = iu ? UNION_ICON : STRUCT_ICON;
+                                    topbarIcon.style.background = iu ? 'rgba(197,134,192,0.12)' : 'rgba(78,201,176,0.12)';
+                                }
                                 document.getElementById('structName').innerHTML =
                                     currentStructName + ' <span class="type-badge ' + (iu ? 'union' : 'struct') + '">' + (iu ? 'union' : 'struct') + '</span>';
                                 document.getElementById('structMeta').textContent =
