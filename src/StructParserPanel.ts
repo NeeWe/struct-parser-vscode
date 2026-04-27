@@ -117,6 +117,13 @@ export class StructParserPanel {
                     case 'alert':
                         vscode.window.showErrorMessage(message.text);
                         return;
+                    case 'importJson':
+                        vscode.commands.executeCommand('workbench.view.extension.structParser');
+                        vscode.window.showInformationMessage('Select "Struct Parser" in the sidebar to import JSON');
+                        return;
+                    case 'openSidebar':
+                        vscode.commands.executeCommand('workbench.view.extension.structParser');
+                        return;
                 }
             },
             null,
@@ -547,6 +554,43 @@ export class StructParserPanel {
                     color: var(--vscode-descriptionForeground);
                 }
 
+                .empty-actions {
+                    margin-top: 20px;
+                    display: flex;
+                    gap: 10px;
+                    justify-content: center;
+                }
+
+                .empty-action-btn {
+                    padding: 8px 20px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 6px;
+                    background: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                    cursor: pointer;
+                    transition: all 0.15s;
+                    font-family: var(--vscode-font-family);
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .empty-action-btn:hover {
+                    background: var(--vscode-button-hoverBackground);
+                    transform: translateY(-1px);
+                }
+
+                .empty-action-btn.secondary {
+                    background: transparent;
+                    color: var(--vscode-foreground);
+                }
+
+                .empty-action-btn.secondary:hover {
+                    background: var(--vscode-list-hoverBackground);
+                }
+
                 /* ===== Content Panel ===== */
                 .content-panel {
                     display: flex;
@@ -665,6 +709,20 @@ export class StructParserPanel {
                     gap: 4px;
                     font-size: 11px;
                     color: var(--vscode-descriptionForeground);
+                    cursor: pointer;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    transition: background 0.15s;
+                    user-select: none;
+                }
+
+                .bitvis-legend-item:hover {
+                    background: var(--vscode-list-hoverBackground);
+                }
+
+                .bitvis-legend-item.active {
+                    background: var(--vscode-list-activeSelectionBackground);
+                    color: var(--vscode-foreground);
                 }
 
                 .bitvis-legend-dot {
@@ -791,8 +849,13 @@ export class StructParserPanel {
                 .bitvis-field-block:hover {
                     opacity: 1;
                     z-index: 6;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-                    transform: scaleY(1.1);
+                    box-shadow: 0 0 0 2px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.3);
+                    filter: brightness(1.15) saturate(1.1);
+                }
+
+                .bitvis-field-block.dimmed {
+                    opacity: 0.25;
+                    filter: grayscale(0.6);
                 }
 
                 .bitvis-field-block-label {
@@ -817,16 +880,18 @@ export class StructParserPanel {
                 /* Union indicator for stacked fields */
                 .bitvis-union-indicator {
                     position: absolute;
-                    right: 3px;
-                    top: 3px;
-                    font-size: 8px;
+                    right: 4px;
+                    top: 4px;
+                    font-size: 9px;
                     font-weight: 700;
-                    color: rgba(255,255,255,0.8);
-                    background: rgba(0,0,0,0.3);
-                    border-radius: 2px;
-                    padding: 1px 4px;
+                    color: rgba(255,255,255,0.9);
+                    background: linear-gradient(135deg, rgba(197,134,192,0.85), rgba(197,134,192,0.6));
+                    border-radius: 3px;
+                    padding: 2px 6px;
                     z-index: 4;
                     pointer-events: none;
+                    letter-spacing: 0.5px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
                 }
 
                 /* Stacked rows for union - height set dynamically by JS */
@@ -923,6 +988,40 @@ export class StructParserPanel {
 
                 .hex-apply-btn:active {
                     transform: translateY(0);
+                }
+
+                @keyframes shake {
+                    0%, 100% { transform: translateX(0); }
+                    20% { transform: translateX(-4px); }
+                    40% { transform: translateX(4px); }
+                    60% { transform: translateX(-3px); }
+                    80% { transform: translateX(3px); }
+                }
+
+                .hex-input-group.shake {
+                    animation: shake 0.35s ease;
+                    border-color: #F48771;
+                    box-shadow: 0 0 0 1px rgba(244,135,113,0.3);
+                }
+
+                .hex-byte-preview {
+                    font-size: 11px;
+                    color: var(--vscode-descriptionForeground);
+                    font-family: var(--vscode-editor-font-family);
+                    margin-left: auto;
+                }
+
+                .hex-byte-preview .byte-count {
+                    color: #4EC9B0;
+                    font-weight: 600;
+                }
+
+                .hex-hint {
+                    font-size: 10px;
+                    color: var(--vscode-descriptionForeground);
+                    opacity: 0.6;
+                    margin-left: 8px;
+                    font-style: italic;
                 }
 
                 .hex-info {
@@ -1094,6 +1193,16 @@ export class StructParserPanel {
                     border-left-color: #4EC9B0;
                 }
 
+                .tree-row.flash-highlight {
+                    animation: flashSelect 1.5s ease;
+                }
+
+                @keyframes flashSelect {
+                    0% { background: var(--vscode-list-activeSelectionBackground); }
+                    70% { background: var(--vscode-list-activeSelectionBackground); }
+                    100% { background: transparent; }
+                }
+
                 .tree-name-group {
                     display: flex;
                     align-items: center;
@@ -1242,10 +1351,14 @@ export class StructParserPanel {
 
                 .tree-children {
                     overflow: hidden;
+                    transition: max-height 0.25s ease, opacity 0.2s ease;
+                    max-height: 2000px;
+                    opacity: 1;
                 }
 
                 .tree-children.collapsed {
-                    display: none;
+                    max-height: 0;
+                    opacity: 0;
                 }
 
                 .tree-node.zero-hidden {
@@ -1341,6 +1454,29 @@ export class StructParserPanel {
 
                 .tree-node { animation: fadeIn 0.2s ease; }
                 .bitvis-field-block { animation: fadeIn 0.3s ease; }
+
+                /* ===== Parent row placeholder ===== */
+                .tree-value-placeholder {
+                    color: var(--vscode-descriptionForeground);
+                    opacity: 0.4;
+                    font-style: italic;
+                    text-align: center;
+                    font-size: 12px;
+                    user-select: none;
+                }
+
+                /* ===== Responsive ===== */
+                @media (max-width: 520px) {
+                    .tree-row, .tree-header {
+                        grid-template-columns: 1fr 70px 40px 40px;
+                    }
+                    .tree-row .tree-value,
+                    .tree-row .tree-hex,
+                    .tree-row .tree-value-placeholder,
+                    .tree-header .tree-hex {
+                        display: none;
+                    }
+                }
             </style>
         </head>
         <body>
@@ -1350,6 +1486,16 @@ export class StructParserPanel {
                     <div class="empty-icon"><svg width='52' height='52' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'><rect x='2' y='3' width='20' height='18' rx='2'/><line x1='2' y1='9' x2='22' y2='9'/><line x1='2' y1='15' x2='22' y2='15'/><line x1='8' y1='9' x2='8' y2='21'/><line x1='15' y1='3' x2='15' y2='9'/></svg></div>
                     <div class="empty-title">No Struct Selected</div>
                     <div class="empty-text">Select a struct from the sidebar to view and edit its binary fields</div>
+                    <div class="empty-actions">
+                        <button class="empty-action-btn" id="emptyImportBtn">
+                            <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3v13'/><path d='M7 11l5 5 5-5'/><path d='M3 21h18'/></svg>
+                            Import JSON
+                        </button>
+                        <button class="empty-action-btn secondary" id="emptyOpenSidebarBtn">
+                            <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='2' y='3' width='20' height='18' rx='2'/><line x1='2' y1='9' x2='22' y2='9'/><line x1='2' y1='15' x2='22' y2='15'/><line x1='8' y1='9' x2='8' y2='21'/></svg>
+                            Open Sidebar
+                        </button>
+                    </div>
                     <div class="empty-steps">
                         <div class="empty-step">
                             <span class="empty-step-num">1</span>
@@ -1403,6 +1549,8 @@ export class StructParserPanel {
                             <span><span class="label">Type: </span><span class="value" id="hexInfoType">struct</span></span>
                             <span><span class="label">Size: </span><span class="value" id="hexInfoSize"></span></span>
                             <span id="adjustBadge" style="display:none"><span class="adjust-badge">Auto-adjusted</span></span>
+                            <span class="hex-byte-preview" id="hexBytePreview"></span>
+                            <span class="hex-hint">Press Enter to parse</span>
                         </div>
                     </div>
 
@@ -1471,14 +1619,50 @@ export class StructParserPanel {
                 };
 
                 const FIELD_COLORS = [
-                    '#4EC9B0', '#569CD6', '#C586C0', '#DCDCAA',
+                    '#4EC9B0', '#569CD6', '#C586C0', '#D7BA7D',
                     '#CE9178', '#6A9955', '#D16969', '#B5CEA8',
-                    '#F44747', '#9CDCFE'
+                    '#F44747', '#9CDCFE', '#FFD700', '#FF8C00'
                 ];
 
                 document.getElementById('btnParse')?.addEventListener('click', parseValue);
-                document.getElementById('hexInput')?.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') parseValue();
+
+                document.getElementById('emptyImportBtn')?.addEventListener('click', () => {
+                    vscode.postMessage({ command: 'importJson' });
+                });
+
+                document.getElementById('emptyOpenSidebarBtn')?.addEventListener('click', () => {
+                    vscode.postMessage({ command: 'openSidebar' });
+                });
+
+                document.getElementById('hexInput')?.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        parseValue();
+                        return;
+                    }
+                    // Allow: backspace, delete, tab, escape, enter, arrows, home, end
+                    if ([8,46,9,27,13,37,38,39,40,35,36].includes(e.keyCode)) return;
+                    // Allow: Ctrl+A/C/V/X
+                    if ((e.ctrlKey || e.metaKey) && [65,67,86,88].includes(e.keyCode)) return;
+                    // Allow hex chars
+                    if (/^[0-9a-fA-F]$/.test(e.key)) return;
+                    e.preventDefault();
+                    const inputGroup = document.querySelector('.hex-input-group');
+                    if (inputGroup) {
+                        inputGroup.classList.remove('shake');
+                        void inputGroup.offsetWidth; // force reflow
+                        inputGroup.classList.add('shake');
+                        setTimeout(() => inputGroup.classList.remove('shake'), 350);
+                    }
+                });
+                document.getElementById('hexInput')?.addEventListener('input', (e) => {
+                    const val = e.target.value.trim();
+                    const clean = val.replace(/[^0-9a-fA-F]/g, '');
+                    const byteCount = Math.ceil(clean.length / 2);
+                    const preview = document.getElementById('hexBytePreview');
+                    if (preview) {
+                        preview.innerHTML = byteCount > 0 ? '<span class="byte-count">' + byteCount + '</span> byte' + (byteCount > 1 ? 's' : '') : '';
+                    }
                 });
 
                 function expandAll() {
@@ -1490,6 +1674,7 @@ export class StructParserPanel {
                             el.classList.add('expanded');
                             children.classList.remove('collapsed');
                         }
+                        if (treeNode) treeNode.setAttribute('aria-expanded', 'true');
                     });
                     allCollapsed = false;
                     const label = document.getElementById('collapseToggleLabel');
@@ -1507,6 +1692,7 @@ export class StructParserPanel {
                             el.classList.remove('expanded');
                             children.classList.add('collapsed');
                         }
+                        if (treeNode) treeNode.setAttribute('aria-expanded', 'false');
                     });
                     allCollapsed = true;
                     const label = document.getElementById('collapseToggleLabel');
@@ -1596,6 +1782,10 @@ export class StructParserPanel {
                         if (children) {
                             children.classList.toggle('collapsed');
                         }
+                        if (treeNode) {
+                            const isExpanded = expand.classList.contains('expanded');
+                            treeNode.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+                        }
                     }
                 }
 
@@ -1662,6 +1852,8 @@ export class StructParserPanel {
                                 document.getElementById('hexInfoSize').textContent = message.structBits + ' bits';
                                 const hexInput = document.getElementById('hexInput');
                                 if (hexInput) hexInput.value = message.hexValue || '';
+                                const bytePreview = document.getElementById('hexBytePreview');
+                                if (bytePreview) bytePreview.innerHTML = '';
                                 const searchInput = document.getElementById('fieldsSearchInput');
                                 if (searchInput) searchInput.value = '';
                                 if (currentFields.length > 0) {
@@ -1884,7 +2076,9 @@ export class StructParserPanel {
                             seenColors.add(color);
                             const item = document.createElement('span');
                             item.className = 'bitvis-legend-item';
+                            item.dataset.fieldType = f.type;
                             item.innerHTML = '<span class="bitvis-legend-dot" style="background:' + color + '"></span>' + f.type;
+                            item.addEventListener('click', () => toggleLegendHighlight(f.type, item));
                             legend.appendChild(item);
                         }
                     });
@@ -2085,6 +2279,28 @@ export class StructParserPanel {
                     }
                 }
 
+                let highlightedFieldType = null;
+
+                function toggleLegendHighlight(fieldType, itemEl) {
+                    const allItems = document.querySelectorAll('.bitvis-legend-item');
+                    const allBlocks = document.querySelectorAll('.bitvis-field-block');
+
+                    if (highlightedFieldType === fieldType) {
+                        // Clear highlight
+                        highlightedFieldType = null;
+                        allItems.forEach(el => el.classList.remove('active'));
+                        allBlocks.forEach(el => el.classList.remove('dimmed'));
+                    } else {
+                        // Set highlight
+                        highlightedFieldType = fieldType;
+                        allItems.forEach(el => el.classList.toggle('active', el.dataset.fieldType === fieldType));
+                        allBlocks.forEach(el => {
+                            const blockType = el.title.split('(')[1]?.split(',')[0]?.trim();
+                            el.classList.toggle('dimmed', blockType !== fieldType);
+                        });
+                    }
+                }
+
                 function findLabelStep(bits) {
                     if (bits <= 8) return 1;
                     if (bits <= 16) return 2;
@@ -2169,11 +2385,11 @@ export class StructParserPanel {
                         const color = getFieldColor(field.type, idx);
 
                         html += \`
-                            <div class="tree-node" data-value="\${field.value}" data-field-idx="\${idx}">
+                            <div class="tree-node" data-value="\${field.value}" data-field-idx="\${idx}" role="treeitem" aria-expanded="\${hasChildren ? 'false' : undefined}">
                                 <div class="tree-row">
                                     <div class="tree-name-group">
                                         <span class="tree-indent" style="padding-left: \${depth * 20}px"></span>
-                                        <span class="tree-expand \${hasChildren ? '' : 'leaf'}">▶</span>
+                                        <span class="tree-expand \${hasChildren ? '' : 'leaf'}" aria-hidden="true">▶</span>
                                         <span class="tree-color-bar" style="background:\${color}"></span>
                                         <span class="tree-name">\${field.name}</span>
                                     </div>
@@ -2184,20 +2400,20 @@ export class StructParserPanel {
 
                         if (!hasChildren) {
                             html += \`
-                                    <input type="text" class="tree-value" value="\${field.value}" data-path="\${pathJson}" data-bits="\${field.bits}" data-orig="\${field.value}">
+                                    <input type="text" class="tree-value" value="\${field.value}" data-path="\${pathJson}" data-bits="\${field.bits}" data-orig="\${field.value}" aria-label="Value for \${field.name}">
                                     <span class="tree-hex">\${field.hex}</span>
                             \`;
                         } else {
                             html += \`
-                                    <input type="text" class="tree-value" value="\${field.value}" data-path="\${pathJson}" data-bits="\${field.bits}" data-orig="\${field.value}">
-                                    <span class="tree-hex">\${field.hex}</span>
+                                    <span class="tree-value-placeholder">—</span>
+                                    <span class="tree-hex">\${field.hex || ''}</span>
                             \`;
                         }
 
                         html += \`</div>\`;
 
                         if (hasChildren) {
-                            html += \`<div class="tree-children collapsed">\`;
+                            html += \`<div class="tree-children collapsed" role="group">\`;
                             field.fields.forEach(child => renderNode(child, depth + 1, fieldPath));
                             html += \`</div>\`;
                         }

@@ -781,10 +781,17 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                 .struct-item.selected {
                     background: var(--vscode-list-activeSelectionBackground);
                     border-left-color: #4EC9B0;
+                    border-radius: 0 6px 6px 0;
+                    margin-right: 4px;
                 }
 
                 .struct-item.selected .struct-item-name {
                     color: var(--vscode-foreground);
+                    font-weight: 600;
+                }
+
+                .struct-item.selected .struct-dot {
+                    box-shadow: 0 0 0 2px var(--vscode-list-activeSelectionBackground), 0 0 0 4px currentColor;
                 }
 
                 .struct-dot {
@@ -905,6 +912,27 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     color: var(--vscode-descriptionForeground);
                     max-width: 200px;
                     line-height: 1.5;
+                    margin-bottom: 16px;
+                }
+
+                .empty-action-btn {
+                    padding: 6px 16px;
+                    font-size: 12px;
+                    font-weight: 500;
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 4px;
+                    background: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                    cursor: pointer;
+                    transition: all 0.15s;
+                    font-family: var(--vscode-font-family);
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+
+                .empty-action-btn:hover {
+                    background: var(--vscode-button-hoverBackground);
                 }
 
                 @keyframes fadeIn {
@@ -923,6 +951,10 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     border-top: 1px solid var(--vscode-panel-border);
                     font-size: 11px;
                     background: var(--vscode-sidebar-background);
+                }
+
+                .pagination.hidden {
+                    display: none;
                 }
 
                 .page-btn {
@@ -1004,6 +1036,10 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                             <div class="empty-icon"><svg width='38' height='38' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'><rect x='2' y='3' width='20' height='18' rx='2'/><line x1='2' y1='9' x2='22' y2='9'/><line x1='2' y1='15' x2='22' y2='15'/><line x1='7' y1='3' x2='7' y2='9'/><path d='M12 12v5'/><path d='M9.5 15l2.5 2 2.5-2'/></svg></div>
                             <div class="empty-title">No Structs Found</div>
                             <div class="empty-text">Import a JSON file to get started</div>
+                            <button class="empty-action-btn" id="emptyImportBtn">
+                                <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3v13'/><path d='M7 11l5 5 5-5'/><path d='M3 21h18'/></svg>
+                                Import JSON
+                            </button>
                         </div>
                     `}
                 </div>
@@ -1056,6 +1092,13 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
 
                 document.getElementById('importBtn').addEventListener('click', () => {
                     vscode.postMessage({ command: 'showImportMenu' });
+                });
+
+                document.getElementById('structList').addEventListener('click', (e) => {
+                    const emptyBtn = e.target.closest('#emptyImportBtn');
+                    if (emptyBtn) {
+                        vscode.postMessage({ command: 'showImportMenu' });
+                    }
                 });
 
                 document.getElementById('structSetSelect').addEventListener('change', (e) => {
@@ -1141,18 +1184,20 @@ export class StructSelectorProvider implements vscode.WebviewViewProvider {
                     const pageInfo = document.getElementById('pageInfo');
                     const prevBtn = document.getElementById('prevPage');
                     const nextBtn = document.getElementById('nextPage');
+                    const pagination = document.getElementById('pagination');
                     if (!list) return;
-
+                
                     const total = currentDisplayStructs.length;
                     const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
                     const start = (currentPage - 1) * PAGE_SIZE;
                     const end = Math.min(start + PAGE_SIZE, total);
                     const pageData = currentDisplayStructs.slice(start, end);
-
-                    if (pageInfo) pageInfo.textContent = totalPages <= 1 ? '' : \`\${currentPage} / \${totalPages}\`;
+                
+                    if (pagination) pagination.classList.toggle('hidden', totalPages <= 1);
+                    if (pageInfo) pageInfo.textContent = totalPages <= 1 ? '' : currentPage + ' / ' + totalPages;
                     if (prevBtn) prevBtn.disabled = currentPage <= 1;
                     if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
-
+                
                     if (total === 0) {
                         list.innerHTML = \`
                             <div class="empty-state">
