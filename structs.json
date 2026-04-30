@@ -1,0 +1,262 @@
+{
+  "structs": [
+    { "name": "DeviceConfig", "type": "DeviceConfig", "bits": 64, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "device_id", "type": "uint16", "bits": 16, "offset": 0 },
+        { "name": "revision", "type": "uint8", "bits": 8, "offset": 16 },
+        { "name": "flags", "type": "uint8", "bits": 8, "offset": 24 },
+        { "name": "timestamp", "type": "uint32", "bits": 32, "offset": 32 }
+      ]
+    },
+    { "name": "Peripheral", "type": "Peripheral", "bits": 112, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "type", "type": "uint8", "bits": 8, "offset": 0 },
+        { "name": "reserved", "type": "uint8", "bits": 8, "offset": 8 },
+        { "name": "config", "type": "DeviceConfig", "bits": 64, "offset": 16,
+          "fields": [
+            { "name": "device_id", "type": "uint16", "bits": 16, "offset": 16 },
+            { "name": "revision", "type": "uint8", "bits": 8, "offset": 32 },
+            { "name": "flags", "type": "uint8", "bits": 8, "offset": 40 },
+            { "name": "timestamp", "type": "uint32", "bits": 32, "offset": 48 }
+          ]
+        },
+        { "name": "irq_mask", "type": "uint32", "bits": 32, "offset": 80 }
+      ]
+    },
+    { "name": "ControlRegister", "type": "ControlRegister", "bits": 32, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "enable", "type": "uint1", "bits": 1, "offset": 0 },
+        { "name": "interrupt", "type": "uint1", "bits": 1, "offset": 1 },
+        { "name": "dma_mode", "type": "uint1", "bits": 1, "offset": 2 },
+        { "name": "reserved0", "type": "uint1", "bits": 1, "offset": 3 },
+        { "name": "clock_div", "type": "uint4", "bits": 4, "offset": 4 },
+        { "name": "threshold", "type": "uint8", "bits": 8, "offset": 8 },
+        { "name": "base_addr", "type": "uint16", "bits": 16, "offset": 16 }
+      ]
+    },
+    { "name": "SensorData", "type": "SensorData", "bits": 88, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "timestamp", "type": "uint32", "bits": 32, "offset": 0 },
+        { "name": "x", "type": "uint16", "bits": 16, "offset": 32 },
+        { "name": "y", "type": "uint16", "bits": 16, "offset": 48 },
+        { "name": "z", "type": "uint16", "bits": 16, "offset": 64 },
+        { "name": "status", "type": "uint8", "bits": 8, "offset": 80 }
+      ]
+    },
+    { "name": "PacketHeader", "type": "PacketHeader", "bits": 64, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "version", "type": "uint8", "bits": 8, "offset": 0 },
+        { "name": "type", "type": "uint8", "bits": 8, "offset": 8 },
+        { "name": "length", "type": "uint16", "bits": 16, "offset": 16 },
+        { "name": "low", "type": "uint8", "bits": 8, "offset": 16 },
+        { "name": "high", "type": "uint8", "bits": 8, "offset": 24 },
+        { "name": "checksum", "type": "uint32", "bits": 32, "offset": 32 }
+      ]
+    },
+    { "name": "OverlayDemo", "type": "OverlayDemo", "bits": 96, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "preamble", "type": "uint8", "bits": 8, "offset": 0 },
+        { "name": "mode", "type": "BitSlice16", "bits": 16, "offset": 8,
+          "fields": [
+            { "name": "raw16", "type": "uint16", "bits": 16, "offset": 8 },
+            { "name": "bytes", "type": "struct", "bits": 16, "offset": 8,
+              "fields": [
+                { "name": "lo", "type": "uint8", "bits": 8, "offset": 8 },
+                { "name": "hi", "type": "uint8", "bits": 8, "offset": 16 }
+              ]
+            },
+            { "name": "nibbles", "type": "struct", "bits": 16, "offset": 8,
+              "fields": [
+                { "name": "n0", "type": "uint4", "bits": 4, "offset": 8 },
+                { "name": "n1", "type": "uint4", "bits": 4, "offset": 12 },
+                { "name": "n2", "type": "uint4", "bits": 4, "offset": 16 },
+                { "name": "n3", "type": "uint4", "bits": 4, "offset": 20 }
+              ]
+            }
+          ]
+        },
+        { "name": "payload", "type": "FramePayload32", "bits": 32, "offset": 24,
+          "fields": [
+            { "name": "raw32", "type": "uint32", "bits": 32, "offset": 24 },
+            { "name": "halves", "type": "struct", "bits": 32, "offset": 24,
+              "fields": [
+                { "name": "lo16", "type": "uint16", "bits": 16, "offset": 24 },
+                { "name": "hi16", "type": "uint16", "bits": 16, "offset": 40 }
+              ]
+            },
+            { "name": "flags_view", "type": "struct", "bits": 32, "offset": 24,
+              "fields": [
+                { "name": "kind", "type": "uint8", "bits": 8, "offset": 24 },
+                { "name": "subkind", "type": "uint8", "bits": 8, "offset": 32 },
+                { "name": "counter", "type": "uint16", "bits": 16, "offset": 40 }
+              ]
+            }
+          ]
+        },
+        { "name": "descriptor", "type": "uint16", "bits": 16, "offset": 56 },
+        { "name": "desc_lo", "type": "uint8", "bits": 8, "offset": 56 },
+        { "name": "desc_hi", "type": "uint8", "bits": 8, "offset": 64 },
+        { "name": "trailer", "type": "uint24", "bits": 24, "offset": 72 }
+      ]
+    },
+    { "name": "DeepNestDemo", "type": "DeepNestDemo", "bits": 128, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "header", "type": "uint16", "bits": 16, "offset": 0 },
+        { "name": "control", "type": "struct", "bits": 48, "offset": 16,
+          "fields": [
+            { "name": "selector", "type": "uint8", "bits": 8, "offset": 16 },
+            { "name": "body", "type": "union", "bits": 40, "offset": 24,
+              "fields": [
+                { "name": "variant_a", "type": "struct", "bits": 40, "offset": 24,
+                  "fields": [
+                    { "name": "a0", "type": "uint8", "bits": 8, "offset": 24 },
+                    { "name": "a1", "type": "uint8", "bits": 8, "offset": 32 },
+                    { "name": "a2", "type": "uint8", "bits": 8, "offset": 40 },
+                    { "name": "a3", "type": "uint8", "bits": 8, "offset": 48 },
+                    { "name": "a4", "type": "uint8", "bits": 8, "offset": 56 }
+                  ]
+                },
+                { "name": "variant_b", "type": "struct", "bits": 40, "offset": 24,
+                  "fields": [
+                    { "name": "tag", "type": "uint8", "bits": 8, "offset": 24 },
+                    { "name": "inner", "type": "BitSlice16", "bits": 16, "offset": 32,
+                      "fields": [
+                        { "name": "raw16", "type": "uint16", "bits": 16, "offset": 32 },
+                        { "name": "bytes", "type": "struct", "bits": 16, "offset": 32,
+                          "fields": [
+                            { "name": "lo", "type": "uint8", "bits": 8, "offset": 32 },
+                            { "name": "hi", "type": "uint8", "bits": 8, "offset": 40 }
+                          ]
+                        },
+                        { "name": "nibbles", "type": "struct", "bits": 16, "offset": 32,
+                          "fields": [
+                            { "name": "n0", "type": "uint4", "bits": 4, "offset": 32 },
+                            { "name": "n1", "type": "uint4", "bits": 4, "offset": 36 },
+                            { "name": "n2", "type": "uint4", "bits": 4, "offset": 40 },
+                            { "name": "n3", "type": "uint4", "bits": 4, "offset": 44 }
+                          ]
+                        }
+                      ]
+                    },
+                    { "name": "crc", "type": "uint16", "bits": 16, "offset": 48 }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        { "name": "status_raw", "type": "uint32", "bits": 32, "offset": 64 },
+        { "name": "status_bytes", "type": "struct", "bits": 32, "offset": 64,
+          "fields": [
+            { "name": "s0", "type": "uint8", "bits": 8, "offset": 64 },
+            { "name": "s1", "type": "uint8", "bits": 8, "offset": 72 },
+            { "name": "s2", "type": "uint8", "bits": 8, "offset": 80 },
+            { "name": "s3", "type": "uint8", "bits": 8, "offset": 88 }
+          ]
+        },
+        { "name": "tail", "type": "uint32", "bits": 32, "offset": 96 }
+      ]
+    },
+    { "name": "TripleOverlapDemo", "type": "TripleOverlapDemo", "bits": 64, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "whole", "type": "uint32", "bits": 32, "offset": 0 },
+        { "name": "half0", "type": "uint16", "bits": 16, "offset": 0 },
+        { "name": "half1", "type": "uint16", "bits": 16, "offset": 16 },
+        { "name": "byte0", "type": "uint8", "bits": 8, "offset": 0 },
+        { "name": "byte1", "type": "uint8", "bits": 8, "offset": 8 },
+        { "name": "byte2", "type": "uint8", "bits": 8, "offset": 16 },
+        { "name": "byte3", "type": "uint8", "bits": 8, "offset": 24 },
+        { "name": "suffix", "type": "uint32", "bits": 32, "offset": 32 }
+      ]
+    },
+    { "name": "SystemState", "type": "SystemState", "bits": 144, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "ctrl", "type": "ControlRegister", "bits": 32, "offset": 0,
+          "fields": [
+            { "name": "enable", "type": "uint1", "bits": 1, "offset": 0 },
+            { "name": "interrupt", "type": "uint1", "bits": 1, "offset": 1 },
+            { "name": "dma_mode", "type": "uint1", "bits": 1, "offset": 2 },
+            { "name": "reserved0", "type": "uint1", "bits": 1, "offset": 3 },
+            { "name": "clock_div", "type": "uint4", "bits": 4, "offset": 4 },
+            { "name": "threshold", "type": "uint8", "bits": 8, "offset": 8 },
+            { "name": "base_addr", "type": "uint16", "bits": 16, "offset": 16 }
+          ]
+        },
+        { "name": "status", "type": "StatusRegister", "bits": 32, "offset": 32,
+          "fields": [
+            { "name": "raw", "type": "uint32", "bits": 32, "offset": 32 },
+            { "name": "packed", "type": "struct", "bits": 32, "offset": 32,
+              "fields": [
+                { "name": "error_code", "type": "uint8", "bits": 8, "offset": 32 },
+                { "name": "warning_flags", "type": "uint8", "bits": 8, "offset": 40 },
+                { "name": "status", "type": "uint16", "bits": 16, "offset": 48 }
+              ]
+            }
+          ]
+        },
+        { "name": "uptime", "type": "uint32", "bits": 32, "offset": 64 },
+        { "name": "queue", "type": "struct", "bits": 48, "offset": 96,
+          "fields": [
+            { "name": "count", "type": "uint16", "bits": 16, "offset": 96 },
+            { "name": "capacity", "type": "uint16", "bits": 16, "offset": 112 },
+            { "name": "active", "type": "uint8", "bits": 8, "offset": 128 },
+            { "name": "pending", "type": "uint8", "bits": 8, "offset": 136 }
+          ]
+        }
+      ]
+    }
+  ],
+  "unions": [
+    { "name": "BitSlice16", "type": "BitSlice16", "bits": 16, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "raw16", "type": "uint16", "bits": 16, "offset": 0 },
+        { "name": "bytes", "type": "struct", "bits": 16, "offset": 0,
+          "fields": [
+            { "name": "lo", "type": "uint8", "bits": 8, "offset": 0 },
+            { "name": "hi", "type": "uint8", "bits": 8, "offset": 8 }
+          ]
+        },
+        { "name": "nibbles", "type": "struct", "bits": 16, "offset": 0,
+          "fields": [
+            { "name": "n0", "type": "uint4", "bits": 4, "offset": 0 },
+            { "name": "n1", "type": "uint4", "bits": 4, "offset": 4 },
+            { "name": "n2", "type": "uint4", "bits": 4, "offset": 8 },
+            { "name": "n3", "type": "uint4", "bits": 4, "offset": 12 }
+          ]
+        }
+      ]
+    },
+    { "name": "FramePayload32", "type": "FramePayload32", "bits": 32, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "raw32", "type": "uint32", "bits": 32, "offset": 0 },
+        { "name": "halves", "type": "struct", "bits": 32, "offset": 0,
+          "fields": [
+            { "name": "lo16", "type": "uint16", "bits": 16, "offset": 0 },
+            { "name": "hi16", "type": "uint16", "bits": 16, "offset": 16 }
+          ]
+        },
+        { "name": "flags_view", "type": "struct", "bits": 32, "offset": 0,
+          "fields": [
+            { "name": "kind", "type": "uint8", "bits": 8, "offset": 0 },
+            { "name": "subkind", "type": "uint8", "bits": 8, "offset": 8 },
+            { "name": "counter", "type": "uint16", "bits": 16, "offset": 16 }
+          ]
+        }
+      ]
+    },
+    { "name": "StatusRegister", "type": "StatusRegister", "bits": 32, "offset": 0, "anonymous": false,
+      "fields": [
+        { "name": "raw", "type": "uint32", "bits": 32, "offset": 0 },
+        { "name": "packed", "type": "struct", "bits": 32, "offset": 0,
+          "fields": [
+            { "name": "error_code", "type": "uint8", "bits": 8, "offset": 0 },
+            { "name": "warning_flags", "type": "uint8", "bits": 8, "offset": 8 },
+            { "name": "status", "type": "uint16", "bits": 16, "offset": 16 }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "metadata": { "totalStructs": 9, "totalUnions": 3, "totalErrors": 0, "success": true, "timestamp": "2026-05-01T00:18:00.000Z" }
+}

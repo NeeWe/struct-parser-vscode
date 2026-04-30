@@ -123,6 +123,31 @@ The extension will display each field with its offset, bit width, decimal value,
 
 ## Development
 
+### Reusable Bitfield Visualization Module
+
+Bitfield rendering has been extracted into a standalone module:
+
+- File: `images/bitfield-visualization.js`
+- Global API: `window.BitfieldVis.createBitfieldRenderer(options)`
+- Current plugin uses this module from the webview
+
+Minimal integration example:
+
+```html
+<script src="./bitfield-visualization.js"></script>
+<script>
+  const renderer = window.BitfieldVis.createBitfieldRenderer({
+    rowBits: 32,
+    laneHeight: 40,
+    isEnabled: () => true,
+    getFieldColor: (type, key) => '#4EC9B0',
+    scrollToFieldPath: (path) => console.log(path)
+  });
+
+  renderer.renderBitVis(fields, totalBits);
+</script>
+```
+
 ### Build
 
 ```bash

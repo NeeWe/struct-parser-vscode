@@ -458,6 +458,9 @@ export class StructParserPanel {
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
         // HTML-once: 所有状态变量均通过 postMessage 动态更新，不嵌入模板
+        const bitfieldScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'images', 'bitfield-visualization.js')
+        );
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -1592,6 +1595,7 @@ export class StructParserPanel {
                 </div>
             </div>
 
+            <script src="${bitfieldScriptUri}"></script>
             <script>
                 const vscode = acquireVsCodeApi();
                 let currentStructName = '';
@@ -1599,6 +1603,20 @@ export class StructParserPanel {
                 let hideZero = false;
                 let bitVisEnabled = true;
                 let currentStructBits = 0;
+                let bitfieldRenderer = null;
+
+                function getBitfieldRenderer() {
+                    if (!bitfieldRenderer && window.BitfieldVis) {
+                        bitfieldRenderer = window.BitfieldVis.createBitfieldRenderer({
+                            rowBits: 32,
+                            laneHeight: 40,
+                            isEnabled: () => bitVisEnabled,
+                            getFieldColor: (fieldType, index) => getFieldColor(fieldType, index),
+                            scrollToFieldPath: (fieldPath) => scrollToFieldPath(fieldPath)
+                        });
+                    }
+                    return bitfieldRenderer;
+                }
 
                 // Topbar icon SVGs for struct vs union
                 const STRUCT_ICON = "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><rect x='2' y='3' width='20' height='18' rx='2'/><line x1='2' y1='9' x2='22' y2='9'/><line x1='2' y1='15' x2='22' y2='15'/><line x1='8' y1='9' x2='8' y2='21'/></svg>";
@@ -1858,7 +1876,12 @@ export class StructParserPanel {
                                 if (searchInput) searchInput.value = '';
                                 if (currentFields.length > 0) {
                                     renderFieldsTree(currentFields);
-                                    renderBitVis(currentFields, message.structBits);
+                                    const renderer = getBitfieldRenderer();
+                                    if (renderer) {
+                                        renderer.renderBitVis(currentFields, message.structBits);
+                                    } else {
+                                        renderBitVis(currentFields, message.structBits);
+                                    }
                                     expandAll();
                                 } else {
                                     document.getElementById('fieldsTree').innerHTML = '';
@@ -1895,7 +1918,12 @@ export class StructParserPanel {
                             const bvSection = document.getElementById('bitvisSection');
                             if (bvSection) {
                                 if (bitVisEnabled && currentFields.length > 0 && currentStructBits > 0) {
-                                    renderBitVis(currentFields, currentStructBits);
+                                    const renderer = getBitfieldRenderer();
+                                    if (renderer) {
+                                        renderer.renderBitVis(currentFields, currentStructBits);
+                                    } else {
+                                        renderBitVis(currentFields, currentStructBits);
+                                    }
                                 } else {
                                     bvSection.style.display = 'none';
                                 }
@@ -1973,10 +2001,13 @@ export class StructParserPanel {
                 // Group sibling fields that have overlapping bit ranges (union detection)
                 function groupByOverlap(fieldList) {
                     const groups = [];
+                    function overlaps(a, b) {
+                        return a.offset < b.offset + b.bits && a.offset + a.bits > b.offset;
+                    }
                     for (const f of fieldList) {
                         let placed = false;
                         for (const group of groups) {
-                            if (group.some(g => f.offset < g.offset + g.bits && f.offset + f.bits > g.offset)) {
+                            if (group.some(g => overlaps(f, g))) {
                                 group.push(f);
                                 placed = true;
                                 break;
@@ -2002,46 +2033,83 @@ export class StructParserPanel {
                     function ensureLane(idx) {
                         while (lanes.length <= idx) lanes.push([]);
                     }
-                    function makeField(f, mi, mc) {
-                        return { ...f, memberIndex: mi, memberCount: mc };
+                    function makeField(f, mi, mc, path) {
+                        return { ...f, memberIndex: mi, memberCount: mc, path };
                     }
                     function isContainer(f) {
                         return f.type === 'struct' || f.type === 'union';
                     }
-                    function walkGroup(fieldList, baseLane, inheritedMi, inheritedMc) {
+                    function overlaps(a, b) {
+                        return a.offset < b.offset + b.bits && a.offset + a.bits > b.offset;
+                    }
+                    // Heuristic: if one wide field overlaps every other field and the remaining
+                    // fields do not overlap each other, treat remaining fields as one composite
+                    // union member (e.g. uint16 length vs {uint8 low; uint8 high;}).
+                    function splitUnionMembers(group) {
+                        if (group.length <= 2) return group.map(f => [f]);
+                        const pivot = group.find(candidate =>
+                            group.every(other => other === candidate || overlaps(candidate, other))
+                        );
+                        if (!pivot) return group.map(f => [f]);
+                        const others = group.filter(f => f !== pivot);
+                        let othersDisjoint = true;
+                        for (let i = 0; i < others.length && othersDisjoint; i++) {
+                            for (let j = i + 1; j < others.length; j++) {
+                                if (overlaps(others[i], others[j])) {
+                                    othersDisjoint = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!othersDisjoint) return group.map(f => [f]);
+                        return [[pivot], others];
+                    }
+                    function walkGroup(fieldList, baseLane, inheritedMi, inheritedMc, pathPrefix) {
                         const overlapGroups = groupByOverlap(fieldList);
                         overlapGroups.forEach(group => {
                             if (group.length === 1) {
                                 const f = group[0];
+                                const fieldPath = [...pathPrefix, f.name];
                                 if (isContainer(f)) {
                                     // Container: transparent — only recurse, never push
-                                    if (f.fields && f.fields.length > 0) walkGroup(f.fields, baseLane, inheritedMi, inheritedMc);
+                                    if (f.fields && f.fields.length > 0) walkGroup(f.fields, baseLane, inheritedMi, inheritedMc, fieldPath);
                                 } else if (f.fields && f.fields.length > 0) {
                                     // Non-container with children: also recurse
-                                    walkGroup(f.fields, baseLane, inheritedMi, inheritedMc);
+                                    walkGroup(f.fields, baseLane, inheritedMi, inheritedMc, fieldPath);
                                 } else {
                                     // Leaf basic-type field: push into lane
                                     ensureLane(baseLane);
-                                    lanes[baseLane].push(makeField(f, inheritedMi, inheritedMc));
+                                    lanes[baseLane].push(makeField(f, inheritedMi, inheritedMc, fieldPath));
                                 }
                             } else {
                                 // Overlapping siblings (union members): Nth member → lane (baseLane + N)
-                                group.forEach((f, fi) => {
-                                    const targetLane = baseLane + fi;
-                                    if (isContainer(f)) {
-                                        // Container union member: transparent — only recurse
-                                        if (f.fields && f.fields.length > 0) walkGroup(f.fields, targetLane, fi, group.length);
-                                    } else if (f.fields && f.fields.length > 0) {
-                                        walkGroup(f.fields, targetLane, fi, group.length);
-                                    } else {
-                                        ensureLane(targetLane);
-                                        lanes[targetLane].push(makeField(f, fi, group.length));
-                                    }
+                                //
+                                // IMPORTANT: nested unions must inherit parent layering.
+                                // Compose member index/count instead of resetting it, so a child
+                                // union inside a parent union stays inside the parent's slice.
+                                const members = splitUnionMembers(group);
+                                const memberCount = members.length;
+                                members.forEach((memberFields, memberIdx) => {
+                                    const targetLane = baseLane + memberIdx;
+                                    const composedMi = inheritedMi * memberCount + memberIdx;
+                                    const composedMc = inheritedMc * memberCount;
+                                    memberFields.forEach((f) => {
+                                        const fieldPath = [...pathPrefix, f.name];
+                                        if (isContainer(f)) {
+                                            // Container union member: transparent — only recurse
+                                            if (f.fields && f.fields.length > 0) walkGroup(f.fields, targetLane, composedMi, composedMc, fieldPath);
+                                        } else if (f.fields && f.fields.length > 0) {
+                                            walkGroup(f.fields, targetLane, composedMi, composedMc, fieldPath);
+                                        } else {
+                                            ensureLane(targetLane);
+                                            lanes[targetLane].push(makeField(f, composedMi, composedMc, fieldPath));
+                                        }
+                                    });
                                 });
                             }
                         });
                     }
-                    walkGroup(fields, 0, 0, 1);
+                    walkGroup(fields, 0, 0, 1, []);
                     return lanes.filter(l => l.length > 0);
                 }
                 
@@ -2260,7 +2328,7 @@ export class StructParserPanel {
                                     bEl.appendChild(labelContainer);
                                 }
                 
-                                bEl.addEventListener('click', () => scrollToField(f.name));
+                                bEl.addEventListener('click', () => scrollToFieldPath(f.path || [f.name]));
                                 fieldArea.appendChild(bEl);
                             });
                         });
@@ -2308,11 +2376,13 @@ export class StructParserPanel {
                     return 8;
                 }
 
-                function scrollToField(fieldName) {
+                function scrollToFieldPath(fieldPath) {
+                    const targetPath = Array.isArray(fieldPath) ? fieldPath.join('.') : String(fieldPath || '');
+                    if (!targetPath) return;
                     const nodes = document.querySelectorAll('.tree-node');
                     for (const node of nodes) {
-                        const nameEl = node.querySelector(':scope > .tree-row .tree-name');
-                        if (nameEl && nameEl.textContent === fieldName) {
+                        const nodePath = node.getAttribute('data-field-path') || '';
+                        if (nodePath === targetPath) {
                             // Expand all ancestors
                             let parent = node.parentElement?.closest('.tree-node');
                             while (parent) {
@@ -2344,7 +2414,12 @@ export class StructParserPanel {
                     const totalBits = data.struct?.bits || currentFields.reduce((sum, f) => sum + f.bits, 0);
                     currentStructBits = totalBits;
                     renderFieldsTree(data.fields);
-                    renderBitVis(data.fields, totalBits);
+                    const renderer = getBitfieldRenderer();
+                    if (renderer) {
+                        renderer.renderBitVis(data.fields, totalBits);
+                    } else {
+                        renderBitVis(data.fields, totalBits);
+                    }
                     expandAll();
                     document.getElementById('contentPanel').style.display = 'flex';
                     document.getElementById('emptyState').style.display = 'none';
@@ -2381,11 +2456,12 @@ export class StructParserPanel {
                                         field.type === 'bool' ? 'bool' : 'uint';
                         const typeLabel = field.type || 'anon';
                         const pathJson = JSON.stringify(fieldPath).replace(/"/g, '&quot;');
+                        const joinedPath = fieldPath.join('.');
                         const idx = fieldIndex.value++;
                         const color = getFieldColor(field.type, idx);
 
                         html += \`
-                            <div class="tree-node" data-value="\${field.value}" data-field-idx="\${idx}" role="treeitem" aria-expanded="\${hasChildren ? 'false' : undefined}">
+                            <div class="tree-node" data-value="\${field.value}" data-field-idx="\${idx}" data-field-path="\${joinedPath}" role="treeitem" aria-expanded="\${hasChildren ? 'false' : undefined}">
                                 <div class="tree-row">
                                     <div class="tree-name-group">
                                         <span class="tree-indent" style="padding-left: \${depth * 20}px"></span>
